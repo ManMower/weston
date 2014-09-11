@@ -919,17 +919,13 @@ drm_output_prepare_overlay_view(struct weston_output *output_base,
 	pixman_region32_init(&dest_rect);
 	pixman_region32_intersect(&dest_rect, &ev->transform.boundingbox,
 				  &output_base->region);
-	pixman_region32_translate(&dest_rect, -output_base->x, -output_base->y);
+	weston_matrix_transform_region(&dest_rect, &output_base->matrix, &dest_rect);
 	box = pixman_region32_extents(&dest_rect);
-	tbox = weston_transformed_rect(output_base->width,
-				       output_base->height,
-				       output_base->transform,
-				       output_base->current_scale,
-				       *box);
-	s->dest_x = tbox.x1;
-	s->dest_y = tbox.y1;
-	s->dest_w = tbox.x2 - tbox.x1;
-	s->dest_h = tbox.y2 - tbox.y1;
+
+	s->dest_x = box->x1;
+	s->dest_y = box->y1;
+	s->dest_w = box->x2 - box->x1;
+	s->dest_h = box->y2 - box->y1;
 	pixman_region32_fini(&dest_rect);
 
 	pixman_region32_init(&src_rect);
