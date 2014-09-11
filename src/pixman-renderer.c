@@ -130,15 +130,7 @@ pixman_renderer_read_pixels(struct weston_output *output,
 static void
 region_global_to_output(struct weston_output *output, pixman_region32_t *region)
 {
-	if (output->zoom.active) {
-		weston_matrix_transform_region(region, &output->matrix, region);
-	} else {
-		pixman_region32_translate(region, -output->x, -output->y);
-		weston_transformed_region(output->width, output->height,
-					  output->transform,
-					  output->current_scale,
-					  region, region);
-	}
+	weston_matrix_transform_region(region, &output->matrix, region);
 }
 
 #define D2F(v) pixman_double_to_fixed((double)v)

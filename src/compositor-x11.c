@@ -374,13 +374,7 @@ set_clip_for_output(struct weston_output *output_base, pixman_region32_t *region
 	xcb_generic_error_t *err;
 
 	pixman_region32_init(&transformed_region);
-	pixman_region32_copy(&transformed_region, region);
-	pixman_region32_translate(&transformed_region,
-				  -output_base->x, -output_base->y);
-	weston_transformed_region(output_base->width, output_base->height,
-				  output_base->transform,
-				  output_base->current_scale,
-				  &transformed_region, &transformed_region);
+	weston_matrix_transform_region(&transformed_region, &output_base->matrix, region);
 
 	rects = pixman_region32_rectangles(&transformed_region, &nrects);
 	output_rects = calloc(nrects, sizeof(xcb_rectangle_t));

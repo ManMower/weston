@@ -985,10 +985,13 @@ gl_renderer_repaint_output(struct weston_output *output,
 #ifdef EGL_EXT_swap_buffers_with_damage
 	if (gr->swap_buffers_with_damage) {
 		pixman_region32_init(&buffer_damage);
-		weston_transformed_region(output->width, output->height,
-					  output->transform,
-					  output->current_scale,
-					  output_damage, &buffer_damage);
+		pixman_region32_copy(&buffer_damage, output_damage);
+		pixman_region32_translate(&buffer_damage,
+					  output->x,
+					  output->y);
+		weston_matrix_transform_region(&buffer_damage,
+					       &output->matrix,
+					       &buffer_damage);
 
 		if (output_has_borders(output)) {
 			pixman_region32_translate(&buffer_damage,
