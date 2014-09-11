@@ -1592,12 +1592,6 @@ void
 weston_matrix_transform_region(pixman_region32_t *dest,
                                struct weston_matrix *matrix,
                                pixman_region32_t *src);
-void
-weston_transformed_region(int width, int height,
-			  enum wl_output_transform transform,
-			  int32_t scale,
-			  pixman_region32_t *src, pixman_region32_t *dest);
-
 void *
 weston_load_module(const char *name, const char *entrypoint);
 

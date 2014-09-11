@@ -796,11 +796,11 @@ shared_output_repainted(struct wl_listener *listener, void *data)
 	wl_list_for_each(sb, &so->shm.buffers, link)
 		pixman_region32_union(&sb->damage, &sb->damage, &damage);
 
+	/* put it back... */
+	pixman_region32_translate(&damage, so->output->x, so->output->y);
+
 	/* Transform to buffer coordinates */
-	weston_transformed_region(so->output->width, so->output->height,
-				  so->output->transform,
-				  so->output->current_scale,
-				  &damage, &damage);
+	weston_matrix_transform_region(&damage, &so->output->matrix, &damage);
 
 	width = so->output->current_mode->width;
 	height = so->output->current_mode->height;
