@@ -161,7 +161,8 @@ weston_matrix_to_pixman_transform(pixman_transform_t *pt,
 static void
 pixman_renderer_compute_transform(pixman_transform_t *transform_out,
 				  struct weston_view *ev,
-				  struct weston_output *output)
+				  struct weston_output *output,
+				  bool *filter)
 {
 	struct weston_matrix matrix;
 
@@ -180,6 +181,9 @@ pixman_renderer_compute_transform(pixman_transform_t *transform_out,
 	weston_matrix_multiply(&matrix, &ev->surface->surface_to_buffer_matrix);
 
 	weston_matrix_to_pixman_transform(transform_out, &matrix);
+
+	*filter = weston_matrix_needs_filtering(&output->matrix);
+
 }
 
 static bool
@@ -326,18 +330,19 @@ repaint_region(struct weston_view *ev, struct weston_output *output,
 		(struct pixman_renderer *) output->compositor->renderer;
 	struct pixman_surface_state *ps = get_surface_state(ev->surface);
 	struct pixman_output_state *po = get_output_state(output);
-	struct weston_buffer_viewport *vp = &ev->surface->buffer_viewport;
 	pixman_transform_t transform;
 	pixman_filter_t filter;
 	pixman_image_t *mask_image;
 	pixman_color_t mask = { 0, };
+	bool need_filter;
 
 	/* Clip rendering to the damaged output region */
 	pixman_image_set_clip_region32(po->shadow_image, repaint_output);
 
-	pixman_renderer_compute_transform(&transform, ev, output);
+	pixman_renderer_compute_transform(&transform, ev, output,
+					  &need_filter);
 
-	if (ev->transform.enabled || output->current_scale != vp->buffer.scale)
+	if (need_filter)
 		filter = PIXMAN_FILTER_BILINEAR;
 	else
 		filter = PIXMAN_FILTER_NEAREST;
