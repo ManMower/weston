@@ -844,7 +844,7 @@ drm_output_prepare_overlay_view(struct weston_output *output_base,
 	pixman_region32_t dest_rect, src_rect;
 	pixman_box32_t *box, tbox;
 	uint32_t format;
-	wl_fixed_t sx1, sy1, sx2, sy2;
+	int32_t sx1, sy1, sx2, sy2;
 
 	if (c->gbm == NULL)
 		return NULL;
@@ -933,39 +933,29 @@ drm_output_prepare_overlay_view(struct weston_output *output_base,
 				  &output_base->region);
 	box = pixman_region32_extents(&src_rect);
 
-	weston_view_from_global_fixed(ev,
-				      wl_fixed_from_int(box->x1),
-				      wl_fixed_from_int(box->y1),
-				      &sx1, &sy1);
-	weston_view_from_global_fixed(ev,
-				      wl_fixed_from_int(box->x2),
-				      wl_fixed_from_int(box->y2),
-				      &sx2, &sy2);
+	weston_view_from_global(ev, box->x1, box->y1, &sx1, &sy1);
+	weston_view_from_global(ev, box->x2, box->y2, &sx2, &sy2);
 
 	if (sx1 < 0)
 		sx1 = 0;
 	if (sy1 < 0)
 		sy1 = 0;
-	if (sx2 > wl_fixed_from_int(ev->surface->width))
-		sx2 = wl_fixed_from_int(ev->surface->width);
-	if (sy2 > wl_fixed_from_int(ev->surface->height))
-		sy2 = wl_fixed_from_int(ev->surface->height);
+	if (sx2 > ev->surface->width)
+		sx2 = ev->surface->width;
+	if (sy2 > ev->surface->height)
+		sy2 = ev->surface->height;
 
 	tbox.x1 = sx1;
 	tbox.y1 = sy1;
 	tbox.x2 = sx2;
 	tbox.y2 = sy2;
 
-	tbox = weston_transformed_rect(wl_fixed_from_int(ev->surface->width),
-				       wl_fixed_from_int(ev->surface->height),
-				       viewport->buffer.transform,
-				       viewport->buffer.scale,
-				       tbox);
+	tbox = weston_surface_to_buffer_rect(ev->surface, tbox);
 
-	s->src_x = tbox.x1 << 8;
-	s->src_y = tbox.y1 << 8;
-	s->src_w = (tbox.x2 - tbox.x1) << 8;
-	s->src_h = (tbox.y2 - tbox.y1) << 8;
+	s->src_x = wl_fixed_from_int(tbox.x1);
+	s->src_y = wl_fixed_from_int(tbox.y1);
+	s->src_w = wl_fixed_from_int(tbox.x2 - tbox.x1);
+	s->src_h = wl_fixed_from_int(tbox.y2 - tbox.y1);
 	pixman_region32_fini(&src_rect);
 
 	return &s->plane;
