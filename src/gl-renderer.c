@@ -589,6 +589,7 @@ static void
 draw_view(struct weston_view *ev, struct weston_output *output,
 	  pixman_region32_t *damage) /* in global coordinates */
 {
+	struct weston_matrix transform;
 	struct weston_compositor *ec = ev->surface->compositor;
 	struct gl_renderer *gr = get_renderer(ec);
 	struct gl_surface_state *gs = get_surface_state(ev->surface);
@@ -622,9 +623,15 @@ draw_view(struct weston_view *ev, struct weston_output *output,
 
 	use_shader(gr, gs->shader);
 	shader_uniforms(gs->shader, ev, output);
+	transform = ev->surface->buffer_to_surface_matrix;
+	if (ev->transform.enabled)
+		weston_matrix_multiply(&transform, &ev->transform.matrix);
+	else
+		weston_matrix_translate(&transform,
+					ev->geometry.x, ev->geometry.y, 0);
+	weston_matrix_multiply(&transform, &output->matrix);
 
-	if (ev->transform.enabled || output->zoom.active ||
-	    output->current_scale != ev->surface->buffer_viewport.buffer.scale)
+	if (weston_matrix_needs_filtering(&transform))
 		filter = GL_LINEAR;
 	else
 		filter = GL_NEAREST;

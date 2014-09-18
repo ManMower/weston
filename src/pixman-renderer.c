@@ -161,7 +161,6 @@ repaint_region(struct weston_view *ev, struct weston_output *output,
 		(struct pixman_renderer *) output->compositor->renderer;
 	struct pixman_surface_state *ps = get_surface_state(ev->surface);
 	struct pixman_output_state *po = get_output_state(output);
-	struct weston_buffer_viewport *vp = &ev->surface->buffer_viewport;
 	pixman_region32_t final_region;
 	float view_x, view_y;
 	pixman_transform_t transform;
@@ -216,7 +215,7 @@ repaint_region(struct weston_view *ev, struct weston_output *output,
 	weston_matrix_to_pixman_transform(&transform, &matrix);
 	pixman_image_set_transform(ps->image, &transform);
 
-	if (ev->transform.enabled || output->current_scale != vp->buffer.scale)
+	if (weston_matrix_needs_filtering(&matrix))
 		pixman_image_set_filter(ps->image, PIXMAN_FILTER_BILINEAR, NULL, 0);
 	else
 		pixman_image_set_filter(ps->image, PIXMAN_FILTER_NEAREST, NULL, 0);
