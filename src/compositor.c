@@ -646,6 +646,50 @@ weston_view_to_global_float(struct weston_view *view,
 	}
 }
 
+WL_EXPORT pixman_box32_t
+weston_matrix_transform_rect(struct weston_matrix *matrix,
+			     pixman_box32_t rect)
+{
+	int i;
+	pixman_box32_t out;
+
+	/* since pixman regions are defined by two corners we have
+	 * to be careful with rotations that aren't multiples of 90.
+	 * We need to take all four corners of the region and rotate
+	 * them, then construct the largest possible two corner
+	 * rectangle from the result.
+	 */
+	struct weston_vector corners[4] = {
+		{{rect.x1, rect.y1, 0, 1}},
+		{{rect.x2, rect.y1, 0, 1}},
+		{{rect.x1, rect.y2, 0, 1}},
+		{{rect.x2, rect.y2, 0, 1}},
+	};
+
+	for (i = 0; i < 4; i++) {
+		weston_matrix_transform(matrix, &corners[i]);
+		corners[i].f[0] /= corners[i].f[3];
+		corners[i].f[1] /= corners[i].f[3];
+	}
+
+	out.x1 = floor(corners[0].f[0]);
+	out.y1 = floor(corners[0].f[1]);
+	out.x2 = ceil(corners[0].f[0]);
+	out.y2 = ceil(corners[0].f[1]);
+
+	for (i = 1; i < 4; i++) {
+		if (floor(corners[i].f[0]) < out.x1)
+			out.x1 = floor(corners[i].f[0]);
+		if (floor(corners[i].f[1]) < out.y1)
+			out.y1 = floor(corners[i].f[1]);
+		if (ceil(corners[i].f[0]) > out.x2)
+			out.x2 = ceil(corners[i].f[0]);
+		if (ceil(corners[i].f[1]) > out.y2)
+			out.y2 = ceil(corners[i].f[1]);
+	}
+	return out;
+}
+
 WL_EXPORT void
 weston_transformed_coord(int width, int height,
 			 enum wl_output_transform transform,
@@ -739,38 +783,8 @@ weston_matrix_transform_region(pixman_region32_t *dest,
 	if (!dest_rects)
 		return;
 
-	for (i = 0; i < nrects; i++) {
-		struct weston_vector vec1 = {{
-			src_rects[i].x1, src_rects[i].y1, 0, 1
-		}};
-		weston_matrix_transform(matrix, &vec1);
-		vec1.f[0] /= vec1.f[3];
-		vec1.f[1] /= vec1.f[3];
-
-		struct weston_vector vec2 = {{
-			src_rects[i].x2, src_rects[i].y2, 0, 1
-		}};
-		weston_matrix_transform(matrix, &vec2);
-		vec2.f[0] /= vec2.f[3];
-		vec2.f[1] /= vec2.f[3];
-
-		if (vec1.f[0] < vec2.f[0]) {
-			dest_rects[i].x1 = floor(vec1.f[0]);
-			dest_rects[i].x2 = ceil(vec2.f[0]);
-		} else {
-			dest_rects[i].x1 = floor(vec2.f[0]);
-			dest_rects[i].x2 = ceil(vec1.f[0]);
-		}
-
-
-		if (vec1.f[1] < vec2.f[1]) {
-			dest_rects[i].y1 = floor(vec1.f[1]);
-			dest_rects[i].y2 = ceil(vec2.f[1]);
-		} else {
-			dest_rects[i].y1 = floor(vec2.f[1]);
-			dest_rects[i].y2 = ceil(vec1.f[1]);
-		}
-	}
+	for (i = 0; i < nrects; i++)
+		dest_rects[i] = weston_matrix_transform_rect(matrix, src_rects[i]);
 
 	pixman_region32_clear(dest);
 	pixman_region32_init_rects(dest, dest_rects, nrects);
@@ -931,22 +945,8 @@ WL_EXPORT pixman_box32_t
 weston_surface_to_buffer_rect(struct weston_surface *surface,
 			      pixman_box32_t rect)
 {
-	struct weston_buffer_viewport *vp = &surface->buffer_viewport;
-	float xf, yf;
-
-	/* first transform box coordinates if the scaler is set */
-	scaler_surface_to_buffer(surface, rect.x1, rect.y1, &xf, &yf);
-	rect.x1 = floorf(xf);
-	rect.y1 = floorf(yf);
-
-	scaler_surface_to_buffer(surface, rect.x2, rect.y2, &xf, &yf);
-	rect.x2 = floorf(xf);
-	rect.y2 = floorf(yf);
-
-	return weston_transformed_rect(surface->width_from_buffer,
-				       surface->height_from_buffer,
-				       vp->buffer.transform, vp->buffer.scale,
-				       rect);
+	return weston_matrix_transform_rect(&surface->surface_to_buffer_matrix,
+					    rect);
 }
 
 /** Transform a region from surface coordinates to buffer coordinates
