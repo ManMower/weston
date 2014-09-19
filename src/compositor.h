@@ -1455,6 +1455,10 @@ int
 module_init(struct weston_compositor *compositor,
 	    int *argc, char *argv[]);
 
+pixman_box32_t
+weston_matrix_transform_rect(struct weston_matrix *matrix,
+			     pixman_box32_t rect);
+
 void
 weston_transformed_coord(int width, int height,
 			 enum wl_output_transform transform,
