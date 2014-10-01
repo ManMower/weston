@@ -824,6 +824,41 @@ weston_matrix_transform_region(pixman_region32_t *dest,
 	free(dest_rects);
 }
 
+static bool near_zero(float a)
+{
+	if (fabs(a) > 0.0001)
+		return false;
+
+	return true;
+}
+
+WL_EXPORT bool
+weston_matrix_needs_filtering(struct weston_matrix *matrix)
+{
+	/* check for non-integral x/y translation */
+	if ((nearbyintf(matrix->d[12]) != matrix->d[12]) ||
+	    (nearbyintf(matrix->d[13]) != matrix->d[13]))
+		return true;
+
+	if (!near_zero(matrix->d[3]) || !near_zero(matrix->d[7]) ||
+	    !near_zero(matrix->d[15] - 1.0))
+		return true;
+
+	if (near_zero(matrix->d[0])) {
+		if (!near_zero(matrix->d[5]) ||
+		    !near_zero(fabsf(matrix->d[1]) - 1.0) ||
+		    !near_zero(fabsf(matrix->d[4]) - 1.0))
+			return true;
+	} else {
+		if (!near_zero(matrix->d[1]) || !near_zero(matrix->d[4]) ||
+		    !near_zero(fabsf(matrix->d[0]) - 1.0) ||
+		    !near_zero(fabsf(matrix->d[5]) - 1.0))
+			return true;
+	}
+
+	return false;
+}
+
 WL_EXPORT void
 weston_surface_to_buffer_float(struct weston_surface *surface,
 			       float sx, float sy, float *bx, float *by)
