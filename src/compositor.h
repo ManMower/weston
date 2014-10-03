@@ -1201,13 +1201,13 @@ void
 weston_view_set_transform_parent(struct weston_view *view,
 				 struct weston_view *parent);
 
-int
+bool
 weston_view_is_mapped(struct weston_view *view);
 
 void
 weston_view_schedule_repaint(struct weston_view *view);
 
-int
+bool
 weston_surface_is_mapped(struct weston_surface *surface);
 
 void
