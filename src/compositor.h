@@ -985,6 +985,11 @@ weston_view_from_global_fixed(struct weston_view *view,
 bool
 weston_matrix_needs_filtering(struct weston_matrix *matrix);
 
+bool
+weston_matrix_to_transform(const struct weston_matrix *mat,
+                           enum wl_output_transform *transform,
+                           float *sx, float *sy,
+                           float *tx, float *ty);
 void
 weston_surface_to_buffer_float(struct weston_surface *surface,
 			       float x, float y, float *bx, float *by);

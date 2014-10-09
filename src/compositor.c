@@ -779,6 +779,63 @@ weston_matrix_needs_filtering(struct weston_matrix *matrix)
 	return false;
 }
 
+WL_EXPORT bool
+weston_matrix_to_transform(const struct weston_matrix *mat,
+                           enum wl_output_transform *transform,
+                           float *sx, float *sy,
+                           float *tx, float *ty)
+{
+	if (!near_zero(mat->d[2]) || !near_zero(mat->d[3]) ||
+	    !near_zero(mat->d[6]) || !near_zero(mat->d[7]) ||
+	    !near_zero(mat->d[8]) || !near_zero(mat->d[9]) ||
+	    !near_zero(mat->d[11]))
+		return false;
+
+	if (!near_zero(mat->d[10] - 1.0) || !near_zero(mat->d[15] - 1.0))
+		return false;
+
+	if (near_zero(mat->d[0])) {
+		if (!near_zero(mat->d[5]))
+			return false;
+
+		if (mat->d[4] > 0) {
+			if (mat->d[1] > 0)
+				*transform = WL_OUTPUT_TRANSFORM_FLIPPED_270;
+			else
+				*transform = WL_OUTPUT_TRANSFORM_270;
+		} else {
+			if (mat->d[1] > 0)
+				*transform = WL_OUTPUT_TRANSFORM_90;
+			else
+				*transform = WL_OUTPUT_TRANSFORM_FLIPPED_90;
+		}
+		*sx = fabs(mat->d[1]);
+		*sy = fabs(mat->d[4]);
+	} else if (near_zero(mat->d[1])) {
+		if (!near_zero(mat->d[4]))
+			return false;
+
+		if (mat->d[0] > 0) {
+			if (mat->d[5] > 0)
+				*transform = WL_OUTPUT_TRANSFORM_NORMAL;
+			else
+				*transform = WL_OUTPUT_TRANSFORM_FLIPPED_180;
+		} else {
+			if (mat->d[5] > 0)
+				*transform = WL_OUTPUT_TRANSFORM_FLIPPED;
+			else
+				*transform = WL_OUTPUT_TRANSFORM_180;
+		}
+		*sx = fabs(mat->d[0]);
+		*sy = fabs(mat->d[5]);
+	} else return false;
+
+	*tx = mat->d[12];
+	*ty = mat->d[13];
+
+	return true;
+}
+
 WL_EXPORT void
 weston_surface_to_buffer_float(struct weston_surface *surface,
 			       float sx, float sy, float *bx, float *by)
