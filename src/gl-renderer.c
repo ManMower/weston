@@ -623,13 +623,8 @@ draw_view(struct weston_view *ev, struct weston_output *output,
 
 	use_shader(gr, gs->shader);
 	shader_uniforms(gs->shader, ev, output);
-	transform = ev->surface->buffer_to_surface_matrix;
-	if (ev->transform.enabled)
-		weston_matrix_multiply(&transform, &ev->transform.matrix);
-	else
-		weston_matrix_translate(&transform,
-					ev->geometry.x, ev->geometry.y, 0);
-	weston_matrix_multiply(&transform, &output->matrix);
+
+	weston_view_to_output_matrix(ev, output, false, &transform);
 
 	if (weston_matrix_needs_filtering(&transform))
 		filter = GL_LINEAR;
