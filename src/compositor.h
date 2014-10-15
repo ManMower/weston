@@ -999,7 +999,11 @@ weston_surface_to_buffer(struct weston_surface *surface,
 pixman_box32_t
 weston_surface_to_buffer_rect(struct weston_surface *surface,
 			      pixman_box32_t rect);
-
+void
+weston_view_to_output_matrix(struct weston_view *view,
+			     struct weston_output *op,
+			     bool inverse,
+			     struct weston_matrix *matrix);
 void
 weston_spring_init(struct weston_spring *spring,
 		   double k, double current, double target);
