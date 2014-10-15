@@ -873,6 +873,25 @@ weston_surface_to_buffer_region(struct weston_surface *surface,
 }
 
 WL_EXPORT void
+weston_view_to_output_matrix(struct weston_view *view,
+			     struct weston_output *op,
+			     bool inverse,
+			     struct weston_matrix *matrix)
+{
+	*matrix = view->surface->buffer_to_surface_matrix;
+	if (view->transform.enabled)
+		weston_matrix_multiply(matrix, &view->transform.matrix);
+	else
+		weston_matrix_translate(matrix,
+					view->geometry.x,
+					view->geometry.y, 0);
+	weston_matrix_multiply(matrix, &op->matrix);
+
+	if (inverse)
+		weston_matrix_invert(matrix, matrix);
+}
+
+WL_EXPORT void
 weston_view_move_to_plane(struct weston_view *view,
 			     struct weston_plane *plane)
 {
