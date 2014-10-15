@@ -907,37 +907,26 @@ drm_output_check_sprite_format(struct drm_sprite *s,
 	return 0;
 }
 
-static int
-drm_view_transform_supported(struct weston_view *ev)
-{
-	return !ev->transform.enabled ||
-		(ev->transform.matrix.type < WESTON_MATRIX_TRANSFORM_ROTATE);
-}
-
 static struct weston_plane *
 drm_output_prepare_overlay_view(struct drm_output *output,
 				struct weston_view *ev)
 {
 	struct weston_compositor *ec = output->base.compositor;
 	struct drm_backend *b = (struct drm_backend *)ec->backend;
-	struct weston_buffer_viewport *viewport = &ev->surface->buffer_viewport;
 	struct wl_resource *buffer_resource;
+	struct weston_matrix matrix;
 	struct drm_sprite *s;
 	struct linux_dmabuf_buffer *dmabuf;
 	int found = 0;
 	struct gbm_bo *bo;
 	pixman_region32_t dest_rect, src_rect;
 	pixman_box32_t *box, tbox;
+	enum wl_output_transform transform;
 	uint32_t format;
+	float scalex, scaley, transx, transy;
 	int32_t sx1, sy1, sx2, sy2;
 
 	if (b->gbm == NULL)
-		return NULL;
-
-	if (viewport->buffer.transform != output->base.transform)
-		return NULL;
-
-	if (viewport->buffer.scale != output->base.current_scale)
 		return NULL;
 
 	if (b->sprites_are_broken)
@@ -956,7 +945,14 @@ drm_output_prepare_overlay_view(struct drm_output *output,
 	if (wl_shm_buffer_get(buffer_resource))
 		return NULL;
 
-	if (!drm_view_transform_supported(ev))
+	weston_view_to_output_matrix(ev, &output->base, false, &matrix);
+
+	if (!weston_matrix_to_transform(&matrix, &transform,
+					&scalex, &scaley,
+					&transx, &transy))
+		return NULL;
+
+	if (transform != WL_OUTPUT_TRANSFORM_NORMAL)
 		return NULL;
 
 	wl_list_for_each(s, &b->sprite_list, link) {
@@ -1048,14 +1044,13 @@ drm_output_prepare_overlay_view(struct drm_output *output,
 	weston_view_from_global(ev, box->x1, box->y1, &sx1, &sy1);
 	weston_view_from_global(ev, box->x2, box->y2, &sx2, &sy2);
 
-	if (sx1 < 0)
-		sx1 = 0;
-	if (sy1 < 0)
-		sy1 = 0;
-	if (sx2 > ev->surface->width)
-		sx2 = ev->surface->width;
-	if (sy2 > ev->surface->height)
-		sy2 = ev->surface->height;
+
+	/* Previously we clamped to the surface edge here, but that will
+	 * result in incorrect scaling, so we just bail.
+	 */
+	if (sx1 < 0 || sy1 < 0 ||
+	    sx2 > ev->surface->width || sy2 > ev->surface->height)
+		return NULL;
 
 	tbox.x1 = sx1;
 	tbox.y1 = sy1;
