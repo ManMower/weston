@@ -171,14 +171,7 @@ pixman_renderer_compute_transform(pixman_transform_t *transform_out,
 	   specified buffer transform/scale */
 	matrix = output->inverse_matrix;
 
-	if (ev->transform.enabled) {
-		weston_matrix_multiply(&matrix, &ev->transform.inverse);
-	} else {
-		weston_matrix_translate(&matrix,
-					-ev->geometry.x, -ev->geometry.y, 0);
-	}
-
-	weston_matrix_multiply(&matrix, &ev->surface->surface_to_buffer_matrix);
+	weston_view_to_output_matrix(ev, output, true, &matrix);
 
 	weston_matrix_to_pixman_transform(transform_out, &matrix);
 
