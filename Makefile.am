@@ -881,7 +881,7 @@ noinst_PROGRAMS +=			\
 	matrix-test
 
 test_module_ldflags = \
-	-module -avoid-version -rpath $(libdir) $(COMPOSITOR_LIBS)
+	-module -avoid-version -rpath $(libdir) $(COMPOSITOR_LIBS) $(CAIRO_LIBS)
 
 surface_global_test_la_SOURCES = tests/surface-global-test.c
 surface_global_test_la_LDFLAGS = $(test_module_ldflags)
@@ -893,7 +893,7 @@ surface_test_la_CFLAGS = $(GCC_CFLAGS) $(COMPOSITOR_CFLAGS)
 
 weston_test_la_LIBADD = $(COMPOSITOR_LIBS) libshared.la
 weston_test_la_LDFLAGS = $(test_module_ldflags)
-weston_test_la_CFLAGS = $(GCC_CFLAGS) $(COMPOSITOR_CFLAGS)
+weston_test_la_CFLAGS = $(GCC_CFLAGS) $(COMPOSITOR_CFLAGS) $(CAIRO_CFLAGS)
 weston_test_la_SOURCES = tests/weston-test.c
 nodist_weston_test_la_SOURCES =			\
 	protocol/wayland-test-protocol.c	\

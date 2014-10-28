@@ -35,6 +35,8 @@
 #include <EGL/eglext.h>
 #endif /* ENABLE_EGL */
 
+#include <cairo.h>
+
 struct weston_test {
 	struct weston_compositor *compositor;
 	struct weston_layer layer;
@@ -235,6 +237,71 @@ get_n_buffers(struct wl_client *client, struct wl_resource *resource)
 	wl_test_send_n_egl_buffers(resource, n_buffers);
 }
 
+static void
+dump_image(const char *filename, int x, int y, uint32_t *image)
+{
+	cairo_surface_t *surface, *flipped;
+	cairo_t *cr;
+
+	surface = cairo_image_surface_create_for_data((unsigned char *)image,
+						      CAIRO_FORMAT_ARGB32,
+						      x, y, x * 4);
+	flipped = cairo_surface_create_similar_image(surface, CAIRO_FORMAT_ARGB32, x, y);
+
+	cr = cairo_create(flipped);
+	cairo_translate(cr, 0.0, y);
+	cairo_scale(cr, 1.0, -1.0);
+	cairo_set_source_surface(cr, surface, 0, 0);
+	cairo_paint(cr);
+	cairo_destroy(cr);
+	cairo_surface_destroy(surface);
+
+	cairo_surface_write_to_png(flipped, filename);
+	cairo_surface_destroy(flipped);
+}
+
+static void
+record_screenshot(struct wl_client *client, struct wl_resource *resource,
+		  const char *basename)
+{
+	struct weston_output *o;
+	struct weston_test *test = wl_resource_get_user_data(resource);
+	char *filename;
+	uint32_t *buffer;
+	int w, h, head = 0;
+
+	wl_list_for_each(o, &test->compositor->output_list, link) {
+		switch (o->transform) {
+		case WL_OUTPUT_TRANSFORM_90:
+		case WL_OUTPUT_TRANSFORM_270:
+		case WL_OUTPUT_TRANSFORM_FLIPPED_90:
+		case WL_OUTPUT_TRANSFORM_FLIPPED_270:
+			w = o->height;
+			h = o->width;
+			break;
+		default:
+			w = o->width;
+			h = o->height;
+			break;
+		}
+		buffer = malloc(w * h * 4);
+		if (!buffer)
+			return;
+
+		test->compositor->renderer->read_pixels(o,
+					      o->compositor->read_format,
+					      buffer, 0, 0, w, h);
+
+		if (asprintf(&filename, "%s-%d.png", basename, head) < 0)
+			return;
+
+		dump_image(filename, w, h, buffer);
+		free(filename);
+		free(buffer);
+		head++;
+	}
+}
+
 static const struct wl_test_interface test_implementation = {
 	move_surface,
 	move_pointer,
@@ -242,6 +309,7 @@ static const struct wl_test_interface test_implementation = {
 	activate_surface,
 	send_key,
 	get_n_buffers,
+	record_screenshot
 };
 
 static void

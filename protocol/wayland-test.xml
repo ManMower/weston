@@ -58,5 +58,8 @@
     <event name="n_egl_buffers">
       <arg name="n" type="uint"/>
     </event>
+    <request name="record_screenshot">
+      <arg name="basename" type="string"/>
+    </request>
   </interface>
 </protocol>
