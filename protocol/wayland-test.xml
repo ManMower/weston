@@ -77,5 +77,11 @@
       <arg name="sec" type="string" summary="whole part in seconds"/>
       <arg name="nsec" type="string" summary="fractional part in seconds"/>
     </request>
+    <request name="repaint"/>
+      <description summary="schedule a compositor repaint">
+        Tells the compositor to schedule a repaint.
+
+        Requires compositor test mode to be active.
+      </description>
   </interface>
 </protocol>
