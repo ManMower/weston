@@ -650,6 +650,7 @@ struct weston_compositor {
 	void (*destroy)(struct weston_compositor *ec);
 	void (*restore)(struct weston_compositor *ec);
 	int (*authenticate)(struct weston_compositor *c, uint32_t id);
+	void (*enable_test_mode)(struct weston_compositor *c);
 
 	struct weston_launcher *launcher;
 
@@ -668,6 +669,8 @@ struct weston_compositor {
 	clockid_t presentation_clock;
 
 	int exit_code;
+
+	bool test_mode;
 };
 
 struct weston_buffer {
@@ -1489,6 +1492,9 @@ weston_parse_transform(const char *transform, uint32_t *out);
 
 const char *
 weston_transform_to_string(uint32_t output_transform);
+
+void
+weston_compositor_test_mode_enable(struct weston_compositor *compositor);
 
 #ifdef  __cplusplus
 }

@@ -4750,6 +4750,30 @@ weston_transform_to_string(uint32_t output_transform)
 	return "<illegal value>";
 }
 
+/** Enters compositor test mode.
+ *
+ * \param compositor The compositor object
+ *
+ * This function places the compositor into a test mode where
+ * clients can control basic functionality.
+ *
+ * \note This should only ever be called by the weston-test module.
+ */
+WL_EXPORT void
+weston_compositor_test_mode_enable(struct weston_compositor *compositor)
+{
+	weston_log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+	weston_log("Entering compositor test mode.\n");
+	weston_log("This should never be seen in normal operation.\n");
+	weston_log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+
+	/* set the test_mode flag first in case the callback follows
+	 * code paths that test it...
+	 */
+	compositor->test_mode = true;
+	if (compositor->enable_test_mode)
+		compositor->enable_test_mode(compositor);
+}
 
 int main(int argc, char *argv[])
 {
