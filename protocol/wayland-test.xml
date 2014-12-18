@@ -68,5 +68,14 @@
         Once test mode is enabled it remains active for the life of the
         compositor.
       </description>
+    <request name="clock_settime">
+      <description summary="set the presentation clock time">
+        Sets the presentation clock time.
+
+        Requires compositor test mode to be active.
+      </description>
+      <arg name="sec" type="string" summary="whole part in seconds"/>
+      <arg name="nsec" type="string" summary="fractional part in seconds"/>
+    </request>
   </interface>
 </protocol>

@@ -4242,6 +4242,29 @@ weston_compositor_presentation_clock_gettime(
 	return clock_gettime(compositor->presentation_clock, ts);
 }
 
+/** Set the presentation clock time when in test mode.
+ *
+ * \param compositor The compositor object
+ * \param ts timespec to set the presentation clock to
+ *
+ * Fails when not in test mode.  Sets the presentation clock
+ * time to the input timespec when in test mode.
+ *
+ * Returns 0 for success or -1 for failure.
+ */
+WL_EXPORT int
+weston_compositor_presentation_clock_settime(
+					 struct weston_compositor *compositor,
+					 const struct timespec *ts)
+{
+	if (!compositor->test_mode) {
+		weston_log("warning: attempt to control presentation clock outside of test mode\n");
+		return -1;
+	}
+	compositor->test_time = *ts;
+	return 0;
+}
+
 WL_EXPORT int
 weston_compositor_set_presentation_clock(struct weston_compositor *compositor,
 					 clockid_t clk_id)

@@ -243,6 +243,18 @@ enable_test_mode(struct wl_client *client, struct wl_resource *resource)
 	weston_compositor_test_mode_enable(test->compositor);
 }
 
+static void
+set_time(struct wl_client *client, struct wl_resource *resource,
+	const char *sec, const char *nsec)
+{
+	struct weston_test *test = wl_resource_get_user_data(resource);
+	struct timespec ts;
+
+	ts.tv_sec = atoll(sec);
+	ts.tv_nsec = atoll(nsec);
+	weston_compositor_presentation_clock_settime(test->compositor, &ts);
+}
+
 static const struct wl_test_interface test_implementation = {
 	move_surface,
 	move_pointer,
@@ -251,6 +263,7 @@ static const struct wl_test_interface test_implementation = {
 	send_key,
 	get_n_buffers,
 	enable_test_mode,
+	set_time,
 };
 
 static void

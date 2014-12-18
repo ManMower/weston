@@ -1281,6 +1281,10 @@ int
 weston_compositor_presentation_clock_gettime(
 				const struct weston_compositor *compositor,
 				struct timespec *ts);
+int
+weston_compositor_presentation_clock_settime(
+					 struct weston_compositor *compositor,
+					 const struct timespec *ts);
 void
 weston_compositor_shutdown(struct weston_compositor *ec);
 void
