@@ -671,6 +671,7 @@ struct weston_compositor {
 	int exit_code;
 
 	bool test_mode;
+	struct timespec test_time;
 };
 
 struct weston_buffer {
@@ -1276,6 +1277,10 @@ weston_compositor_set_presentation_clock(struct weston_compositor *compositor,
 int
 weston_compositor_set_presentation_clock_software(
 					struct weston_compositor *compositor);
+int
+weston_compositor_presentation_clock_gettime(
+				const struct weston_compositor *compositor,
+				struct timespec *ts);
 void
 weston_compositor_shutdown(struct weston_compositor *ec);
 void

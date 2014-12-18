@@ -340,7 +340,7 @@ x11_output_start_repaint_loop(struct weston_output *output)
 {
 	struct timespec ts;
 
-	clock_gettime(output->compositor->presentation_clock, &ts);
+	weston_compositor_presentation_clock_gettime(output->compositor, &ts);
 	weston_output_finish_frame(output, &ts);
 }
 

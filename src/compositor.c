@@ -4220,6 +4220,28 @@ weston_compositor_set_default_pointer_grab(struct weston_compositor *ec,
 	}
 }
 
+/** Get the presentation clock time.
+ *
+ * \param compositor The compositor object
+ * \param ts Returned timespec
+ *
+ * Wraps clock_gettime() so compositor test mode can provide a client driven
+ * presentation clock.
+ *
+ * Returns 0 for success or -1 for failure.
+ */
+WL_EXPORT int
+weston_compositor_presentation_clock_gettime(
+				const struct weston_compositor *compositor,
+				struct timespec *ts)
+{
+	if (compositor->test_mode) {
+		*ts = compositor->test_time;
+		return 0;
+	}
+	return clock_gettime(compositor->presentation_clock, ts);
+}
+
 WL_EXPORT int
 weston_compositor_set_presentation_clock(struct weston_compositor *compositor,
 					 clockid_t clk_id)
