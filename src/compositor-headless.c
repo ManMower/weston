@@ -69,19 +69,30 @@ finish_frame_handler(void *data)
 	return 1;
 }
 
+static void
+finish_frame_handler_idle(void *data)
+{
+	headless_output_start_repaint_loop(data);
+}
+
 static int
 headless_output_repaint(struct weston_output *output_base,
 		       pixman_region32_t *damage)
 {
 	struct headless_output *output = (struct headless_output *) output_base;
 	struct weston_compositor *ec = output->base.compositor;
+	struct wl_event_loop *loop;
 
 	ec->renderer->repaint_output(&output->base, damage);
 
 	pixman_region32_subtract(&ec->primary_plane.damage,
 				 &ec->primary_plane.damage, damage);
 
-	wl_event_source_timer_update(output->finish_frame_timer, 16);
+	if (ec->test_mode) {
+		loop = wl_display_get_event_loop(ec->wl_display);
+		wl_event_loop_add_idle(loop, finish_frame_handler_idle, output_base);
+	} else
+		wl_event_source_timer_update(output->finish_frame_timer, 16);
 
 	return 0;
 }
@@ -93,7 +104,8 @@ headless_output_destroy(struct weston_output *output_base)
 	struct headless_compositor *c =
 			(struct headless_compositor *) output->base.compositor;
 
-	wl_event_source_remove(output->finish_frame_timer);
+	if (output->finish_frame_timer)
+		wl_event_source_remove(output->finish_frame_timer);
 
 	if (c->use_pixman) {
 		pixman_renderer_output_destroy(&output->base);
@@ -194,6 +206,23 @@ headless_restore(struct weston_compositor *ec)
 }
 
 static void
+headless_enable_test_mode(struct weston_compositor *ec)
+{
+	struct weston_output *base;
+	weston_log("Headless compositor entering test mode.\n");
+
+	wl_list_for_each(base, &ec->output_list, link) {
+		struct headless_output *out = (struct headless_output *)base;
+
+		wl_event_source_remove(out->finish_frame_timer);
+		out->finish_frame_timer = NULL;
+		if (base->repaint_scheduled) {
+			finish_frame_handler(base);
+		}
+	}
+}
+
+static void
 headless_destroy(struct weston_compositor *ec)
 {
 	struct headless_compositor *c = (struct headless_compositor *) ec;
@@ -228,6 +257,7 @@ headless_compositor_create(struct wl_display *display,
 
 	c->base.destroy = headless_destroy;
 	c->base.restore = headless_restore;
+	c->base.enable_test_mode = headless_enable_test_mode;
 
 	c->use_pixman = param->use_pixman;
 	if (c->use_pixman) {
