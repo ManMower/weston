@@ -22,6 +22,7 @@
 
 #include "config.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <stdbool.h>
 
@@ -177,6 +178,7 @@ weston_output_update_zoom(struct weston_output *output)
 	wl_fixed_t x = seat->pointer->x;
 	wl_fixed_t y = seat->pointer->y;
 
+	assert(output->zoom.active);
 	zoom_area_center_from_pointer(output, &x, &y);
 
 	if (wl_list_empty(&output->zoom.animation_xy.link)) {
