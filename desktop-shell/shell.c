@@ -4666,16 +4666,15 @@ static void
 do_zoom(struct weston_seat *seat, uint32_t time, uint32_t key, uint32_t axis,
 	wl_fixed_t value)
 {
+	bool zoomed = false;
 	struct weston_seat *ws = (struct weston_seat *) seat;
 	struct weston_compositor *compositor = ws->compositor;
 	struct weston_output *output;
 	float increment;
 
-	wl_list_for_each(output, &compositor->output_list, link) {
-		if (pixman_region32_contains_point(&output->region,
-						   wl_fixed_to_double(seat->pointer->x),
-						   wl_fixed_to_double(seat->pointer->y),
-						   NULL)) {
+	wl_list_for_each_reverse(output, &compositor->output_list, link) {
+		if (weston_get_zoom_target(output, seat, NULL, NULL) == 0 ||
+		    (zoomed == false && output->id == 0)) {
 			if (key == KEY_PAGEUP)
 				increment = output->zoom.increment;
 			else if (key == KEY_PAGEDOWN)
@@ -4703,6 +4702,7 @@ do_zoom(struct weston_seat *seat, uint32_t time, uint32_t key, uint32_t axis,
 			output->zoom.spring_z.target = output->zoom.level;
 
 			weston_output_update_zoom(output);
+			zoomed = true;
 		}
 	}
 }

@@ -66,7 +66,6 @@ static void
 weston_zoom_frame_xy(struct weston_animation *animation,
 		struct weston_output *output, uint32_t msecs)
 {
-	struct weston_seat *seat = output->zoom.seat;
 	wl_fixed_t x, y;
 
 	if (animation->frame_counter <= 1)
@@ -84,8 +83,9 @@ weston_zoom_frame_xy(struct weston_animation *animation,
 
 	if (weston_spring_done(&output->zoom.spring_xy)) {
 		output->zoom.spring_xy.current = output->zoom.spring_xy.target;
-		output->zoom.current.x = seat->pointer->x;
-		output->zoom.current.y = seat->pointer->y;
+		weston_get_zoom_target(output, NULL,
+				       &output->zoom.current.x,
+				       &output->zoom.current.y);
 		wl_list_remove(&animation->link);
 		wl_list_init(&animation->link);
 	}
@@ -170,16 +170,20 @@ weston_zoom_transition(struct weston_output *output, wl_fixed_t x, wl_fixed_t y)
 WL_EXPORT void
 weston_output_update_zoom(struct weston_output *output)
 {
-	struct weston_seat *seat = output->zoom.seat;
-	wl_fixed_t x = seat->pointer->x;
-	wl_fixed_t y = seat->pointer->y;
+	wl_fixed_t target_x, target_y, x, y;
 
 	assert(output->zoom.active);
 
+	if (weston_get_zoom_target(output, NULL, &target_x, &target_y) < 0)
+		return;
+
+	x = target_x;
+	y = target_y;
 	zoom_area_center_from_point(output, &x, &y);
+
 	if (wl_list_empty(&output->zoom.animation_xy.link)) {
-		output->zoom.current.x = seat->pointer->x;
-		output->zoom.current.y = seat->pointer->y;
+		output->zoom.current.x = target_x;
+		output->zoom.current.y = target_y;
 	} else {
 		output->zoom.to.x = x;
 		output->zoom.to.y = y;

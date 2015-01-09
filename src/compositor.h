@@ -1493,6 +1493,12 @@ weston_load_module(const char *name, const char *entrypoint);
 int
 weston_parse_transform(const char *transform, uint32_t *out);
 
+int
+weston_get_zoom_target(struct weston_output *output,
+		       struct weston_seat *seat,
+		       wl_fixed_t *x,
+		       wl_fixed_t *y);
+
 const char *
 weston_transform_to_string(uint32_t output_transform);
 

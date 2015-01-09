@@ -4738,6 +4738,78 @@ weston_parse_transform(const char *transform, uint32_t *out)
 	return -1;
 }
 
+
+/** Get zoom target (x and y co-ordinates) for the output and seat.
+ *
+ * \param output The output to be zoomed
+ * \param seat The seat that initiated the zoom request - may be NULL if
+ * an active zoom already exists, as the original zoom source will be used.
+ * \return 0 for success
+ *         1 if the target isn't on the output but exists (x, y are updated)
+ *        -1 if no target could be found
+ */
+WL_EXPORT int
+weston_get_zoom_target(struct weston_output *output,
+		       struct weston_seat *seat,
+		       wl_fixed_t *x,
+		       wl_fixed_t *y)
+{
+	uint32_t mask_bit;
+	struct weston_surface *focus = NULL;
+	double tmp_x, tmp_y;
+
+	/* if we've already got an active zoom, that seat should
+	 * set the target.
+	 */
+	if (output->zoom.active)
+		seat = output->zoom.seat;
+	assert(seat);
+
+	if (seat->pointer_device_count > 0) {
+		if (x)
+			*x = seat->pointer->x;
+		if (y)
+			*y = seat->pointer->y;
+		tmp_x = wl_fixed_to_double(seat->pointer->x);
+		tmp_y = wl_fixed_to_double(seat->pointer->y);
+		if (pixman_region32_contains_point(&output->region,
+						   tmp_x, tmp_y, NULL))
+			return 0;
+		return 1;
+	}
+
+	if (seat->keyboard_device_count > 0)
+		focus = weston_surface_get_main_surface(seat->keyboard->focus);
+
+	mask_bit = 1 << output->id;
+	if (focus && (mask_bit & focus->output_mask)) {
+		struct weston_view *view;
+		wl_list_for_each(view, &focus->views, surface_link) {
+			if (!(mask_bit & view->output_mask))
+				continue;
+			if (x) {
+				double cx = view->geometry.x + focus->width / 2.0;
+				*x = wl_fixed_from_double(cx);
+			}
+			if (y) {
+				double cy = view->geometry.y + focus->height / 2.0;
+				*y = wl_fixed_from_double(cy);
+			}
+			return 0;
+		}
+	}
+
+	if (output->zoom.active) {
+		if (x)
+			*x = wl_fixed_from_double(output->x + output->width / 2.0);
+		if (y)
+			*y = wl_fixed_from_double(output->y + output->height / 2.0);
+		return 0;
+	}
+	return -1;
+
+}
+
 WL_EXPORT const char *
 weston_transform_to_string(uint32_t output_transform)
 {
