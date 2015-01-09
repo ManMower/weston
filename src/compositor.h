@@ -153,6 +153,7 @@ struct weston_fixed_point {
 
 struct weston_output_zoom {
 	bool active;
+	bool has_listener;
 	float increment;
 	float level;
 	float max_level;
@@ -1286,6 +1287,9 @@ weston_output_update_zoom(struct weston_output *output);
 void
 weston_output_activate_zoom(struct weston_output *output,
 			    struct weston_seat *seat);
+void
+weston_output_zoom_add_motion_listener(struct weston_output *output,
+				       struct weston_seat *seat);
 void
 weston_output_update_matrix(struct weston_output *output);
 void

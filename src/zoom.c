@@ -48,7 +48,10 @@ weston_zoom_frame_z(struct weston_animation *animation,
 			output->zoom.active = false;
 			output->zoom.seat = NULL;
 			output->disable_planes--;
-			wl_list_remove(&output->zoom.motion_listener.link);
+			if (output->zoom.has_listener) {
+				wl_list_remove(&output->zoom.motion_listener.link);
+				output->zoom.has_listener = false;
+			}
 		}
 		output->zoom.spring_z.current = output->zoom.level;
 		wl_list_remove(&animation->link);
@@ -197,6 +200,28 @@ motion(struct wl_listener *listener, void *data)
 	weston_output_update_zoom(output);
 }
 
+/** Add a motion listener for a zoomed output
+ *
+ * This will be called at the start of a zoom or during hotplug
+ * if there was no pointer when the zoom started.
+ *
+ * \param output Output to add listener to
+ * \param seat Seat that controls the zoom location
+ */
+WL_EXPORT void
+weston_output_zoom_add_motion_listener(struct weston_output *output,
+				       struct weston_seat *seat)
+{
+	if (!output->zoom.active ||
+	    output->zoom.seat != seat ||
+	    !seat->pointer)
+		return;
+
+	wl_signal_add(&seat->pointer->motion_signal,
+		      &output->zoom.motion_listener);
+	output->zoom.has_listener = true;
+}
+
 WL_EXPORT void
 weston_output_activate_zoom(struct weston_output *output,
 			    struct weston_seat *seat)
@@ -207,8 +232,8 @@ weston_output_activate_zoom(struct weston_output *output,
 	output->zoom.active = true;
 	output->zoom.seat = seat;
 	output->disable_planes++;
-	wl_signal_add(&seat->pointer->motion_signal,
-		      &output->zoom.motion_listener);
+
+	weston_output_zoom_add_motion_listener(output, seat);
 }
 
 WL_EXPORT void

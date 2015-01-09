@@ -2189,6 +2189,7 @@ weston_seat_release_keyboard(struct weston_seat *seat)
 WL_EXPORT void
 weston_seat_init_pointer(struct weston_seat *seat)
 {
+	struct weston_output *output;
 	struct weston_pointer *pointer;
 
 	if (seat->pointer) {
@@ -2207,6 +2208,9 @@ weston_seat_init_pointer(struct weston_seat *seat)
 	pointer->seat = seat;
 
 	seat_send_updated_caps(seat);
+
+	wl_list_for_each(output, &seat->compositor->output_list, link)
+		weston_output_zoom_add_motion_listener(output, seat);
 }
 
 WL_EXPORT void
