@@ -924,23 +924,6 @@ static const struct wl_input_method_listener input_method_listener = {
 };
 
 static void
-global_handler(struct display *display, uint32_t name,
-	       const char *interface, uint32_t version, void *data)
-{
-	struct virtual_keyboard *keyboard = data;
-
-	if (!strcmp(interface, "wl_input_panel")) {
-		keyboard->input_panel =
-			display_bind(display, name, &wl_input_panel_interface, 1);
-	} else if (!strcmp(interface, "wl_input_method")) {
-		keyboard->input_method =
-			display_bind(display, name,
-				     &wl_input_method_interface, 1);
-		wl_input_method_add_listener(keyboard->input_method, &input_method_listener, keyboard);
-	}
-}
-
-static void
 keyboard_create(struct output *output, struct virtual_keyboard *virtual_keyboard)
 {
 	struct keyboard *keyboard;
@@ -976,6 +959,23 @@ keyboard_create(struct output *output, struct virtual_keyboard *virtual_keyboard
 	wl_input_panel_surface_set_toplevel(ips,
 					    output_get_wl_output(output),
 					    WL_INPUT_PANEL_SURFACE_POSITION_CENTER_BOTTOM);
+}
+
+static void
+global_handler(struct display *display, uint32_t name,
+	       const char *interface, uint32_t version, void *data)
+{
+	struct virtual_keyboard *keyboard = data;
+
+	if (!strcmp(interface, "wl_input_panel")) {
+		keyboard->input_panel =
+			display_bind(display, name, &wl_input_panel_interface, 1);
+	} else if (!strcmp(interface, "wl_input_method")) {
+		keyboard->input_method =
+			display_bind(display, name,
+				     &wl_input_method_interface, 1);
+		wl_input_method_add_listener(keyboard->input_method, &input_method_listener, keyboard);
+	}
 }
 
 int
