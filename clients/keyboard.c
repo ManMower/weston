@@ -915,13 +915,25 @@ static const struct wl_input_method_listener input_method_listener = {
 	input_method_deactivate
 };
 
+static void keyboard_initialize(struct virtual_keyboard *keyboard,
+				struct wl_input_panel *input_panel)
+{
+	struct wl_input_panel_surface *ips;
+	struct output *output;
+
+	ips = wl_input_panel_get_input_panel_surface(input_panel,
+						     window_get_wl_surface(keyboard->window));
+
+	output = display_get_output(keyboard->display);
+	wl_input_panel_surface_set_toplevel(ips,
+					    output_get_wl_output(output),
+					    WL_INPUT_PANEL_SURFACE_POSITION_CENTER_BOTTOM);
+}
+
 static void
 keyboard_create(struct output *output, struct virtual_keyboard *keyboard)
 {
-	const struct layout *layout;
-	struct wl_input_panel_surface *ips;
-
-	layout = get_current_layout(keyboard);
+	const struct layout *layout = get_current_layout(keyboard);
 
 	keyboard->window = window_create_custom(keyboard->display);
 	keyboard->widget = window_add_widget(keyboard->window, keyboard);
@@ -939,13 +951,7 @@ keyboard_create(struct output *output, struct virtual_keyboard *keyboard)
 			       layout->columns * key_width,
 			       layout->rows * key_height);
 
-
-	ips = wl_input_panel_get_input_panel_surface(keyboard->input_panel,
-						     window_get_wl_surface(keyboard->window));
-
-	wl_input_panel_surface_set_toplevel(ips,
-					    output_get_wl_output(output),
-					    WL_INPUT_PANEL_SURFACE_POSITION_CENTER_BOTTOM);
+	keyboard_initialize(keyboard, keyboard->input_panel);
 }
 
 static void
