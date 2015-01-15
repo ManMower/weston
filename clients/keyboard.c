@@ -44,7 +44,7 @@ struct virtual_keyboard {
 	struct window *window;
 	struct widget *widget;
 	enum keyboard_state state;
-	struct wl_input_panel *input_panel;
+	struct wl_input_panel_surface *input_panel_surface;
 	struct wl_input_method *input_method;
 	struct wl_input_method_context *context;
 	struct display *display;
@@ -60,6 +60,13 @@ struct virtual_keyboard {
 	char *preferred_language;
 	char *surrounding_text;
 	uint32_t surrounding_cursor;
+	struct wl_list link;
+};
+
+struct keyboard_manager {
+	struct display *display;
+	struct wl_input_panel *input_panel;
+	struct wl_list keyboards;
 };
 
 enum key_type {
@@ -918,23 +925,36 @@ static const struct wl_input_method_listener input_method_listener = {
 static void keyboard_initialize(struct virtual_keyboard *keyboard,
 				struct wl_input_panel *input_panel)
 {
-	struct wl_input_panel_surface *ips;
 	struct output *output;
 
-	ips = wl_input_panel_get_input_panel_surface(input_panel,
-						     window_get_wl_surface(keyboard->window));
+	if (keyboard->input_panel_surface)
+		return;
+
+	keyboard->input_panel_surface =
+		wl_input_panel_get_input_panel_surface(input_panel,
+				window_get_wl_surface(keyboard->window));
 
 	output = display_get_output(keyboard->display);
-	wl_input_panel_surface_set_toplevel(ips,
+	wl_input_panel_surface_set_toplevel(keyboard->input_panel_surface,
 					    output_get_wl_output(output),
 					    WL_INPUT_PANEL_SURFACE_POSITION_CENTER_BOTTOM);
 }
 
-static void
-keyboard_create(struct output *output, struct virtual_keyboard *keyboard)
+static struct virtual_keyboard *
+keyboard_create(struct keyboard_manager *manager,
+		struct wl_input_method *input_method)
 {
-	const struct layout *layout = get_current_layout(keyboard);
+	struct virtual_keyboard *keyboard;
+	const struct layout *layout;
 
+	keyboard = xzalloc(sizeof *keyboard);
+	if (!keyboard)
+		return NULL;
+
+	layout = get_current_layout(keyboard);
+
+	keyboard->display = manager->display;
+	keyboard->input_method = input_method;
 	keyboard->window = window_create_custom(keyboard->display);
 	keyboard->widget = window_add_widget(keyboard->window, keyboard);
 
@@ -951,52 +971,62 @@ keyboard_create(struct output *output, struct virtual_keyboard *keyboard)
 			       layout->columns * key_width,
 			       layout->rows * key_height);
 
-	keyboard_initialize(keyboard, keyboard->input_panel);
+	if (manager->input_panel)
+		keyboard_initialize(keyboard, manager->input_panel);
+
+	return keyboard;
 }
 
 static void
 global_handler(struct display *display, uint32_t name,
 	       const char *interface, uint32_t version, void *data)
 {
-	struct virtual_keyboard *keyboard = data;
+	struct keyboard_manager *manager = data;
+	struct virtual_keyboard *keyboard;
+	struct wl_input_method *input_method;
 
 	if (!strcmp(interface, "wl_input_panel")) {
-		keyboard->input_panel =
+		manager->input_panel =
 			display_bind(display, name, &wl_input_panel_interface, 1);
 	} else if (!strcmp(interface, "wl_input_method")) {
-		keyboard->input_method =
-			display_bind(display, name,
-				     &wl_input_method_interface, 1);
-		wl_input_method_add_listener(keyboard->input_method, &input_method_listener, keyboard);
+		input_method = display_bind(display, name,
+					    &wl_input_method_interface, 1);
+		keyboard = keyboard_create(manager, input_method);
+		if (!keyboard) {
+			fprintf(stderr, "Unable to create keyboard.\n");
+			return;
+		}
+		wl_list_insert(&manager->keyboards, &keyboard->link);
+		wl_input_method_add_listener(input_method, &input_method_listener, keyboard);
 	}
 }
 
 int
 main(int argc, char *argv[])
 {
-	struct virtual_keyboard virtual_keyboard;
-	struct output *output;
+	struct keyboard_manager manager;
+	struct virtual_keyboard *keyboard;
 
-	memset(&virtual_keyboard, 0, sizeof virtual_keyboard);
-
-	virtual_keyboard.display = display_create(&argc, argv);
-	if (virtual_keyboard.display == NULL) {
+	memset(&manager, 0, sizeof manager);
+	wl_list_init(&manager.keyboards);
+	manager.display = display_create(&argc, argv);
+	if (manager.display == NULL) {
 		fprintf(stderr, "failed to create display: %m\n");
 		return -1;
 	}
 
-	display_set_user_data(virtual_keyboard.display, &virtual_keyboard);
-	display_set_global_handler(virtual_keyboard.display, global_handler);
+	display_set_user_data(manager.display, &manager);
+	display_set_global_handler(manager.display, global_handler);
 
-	if (virtual_keyboard.input_panel == NULL) {
+	if (manager.input_panel == NULL) {
 		fprintf(stderr, "No input panel global\n");
 		return -1;
 	}
 
-	output = display_get_output(virtual_keyboard.display);
-	keyboard_create(output, &virtual_keyboard);
+	wl_list_for_each(keyboard, &manager.keyboards, link)
+		keyboard_initialize(keyboard, manager.input_panel);
 
-	display_run(virtual_keyboard.display);
+	display_run(manager.display);
 
 	return 0;
 }
