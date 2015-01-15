@@ -69,7 +69,6 @@ struct text_entry {
 	uint32_t serial;
 	uint32_t reset_serial;
 	uint32_t content_purpose;
-	uint32_t click_to_show;
 	char *preferred_language;
 	bool button_pressed;
 };
@@ -490,9 +489,6 @@ text_input_leave(void *data,
 	text_entry_commit_and_reset(entry);
 	entry->active--;
 
-	if (!entry->active)
-		wl_text_input_hide_input_panel(text_input);
-
 	widget_schedule_redraw(entry->widget);
 }
 
@@ -649,15 +645,6 @@ text_entry_activate(struct text_entry *entry,
 		    struct wl_seat *seat)
 {
 	struct wl_surface *surface = window_get_wl_surface(entry->window);
-
-	if (entry->click_to_show && entry->active) {
-		wl_text_input_show_input_panel(entry->text_input);
-
-		return;
-	}
-
-	if (!entry->click_to_show)
-		wl_text_input_show_input_panel(entry->text_input);
 
 	wl_text_input_activate(entry->text_input,
 			       seat,
@@ -1325,13 +1312,10 @@ main(int argc, char *argv[])
 {
 	struct editor editor;
 	int i;
-	uint32_t click_to_show = 0;
 	const char *preferred_language = NULL;
 
 	for (i = 1; i < argc; i++) {
-		if (strcmp("--click-to-show", argv[i]) == 0)
-			click_to_show = 1;
-		else if (strcmp("--preferred-language", argv[i]) == 0 &&
+		if (strcmp("--preferred-language", argv[i]) == 0 &&
 			 i + 1 < argc) {
 			preferred_language = argv[i + 1];
 			i++;
@@ -1368,12 +1352,10 @@ main(int argc, char *argv[])
 	editor.widget = window_frame_create(editor.window, &editor);
 
 	editor.entry = text_entry_create(&editor, "Entry");
-	editor.entry->click_to_show = click_to_show;
 	if (preferred_language)
 		editor.entry->preferred_language = strdup(preferred_language);
 	editor.editor = text_entry_create(&editor, "Numeric");
 	editor.editor->content_purpose = WL_TEXT_INPUT_CONTENT_PURPOSE_NUMBER;
-	editor.editor->click_to_show = click_to_show;
 
 	window_set_title(editor.window, "Text Editor");
 	window_set_key_handler(editor.window, key_handler);
