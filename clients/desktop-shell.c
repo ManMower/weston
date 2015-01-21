@@ -34,7 +34,7 @@
 #include <cairo.h>
 #include <sys/wait.h>
 #include <sys/timerfd.h>
-#include <sys/epoll.h> 
+#include <sys/epoll.h>
 #include <linux/input.h>
 #include <libgen.h>
 #include <ctype.h>
@@ -261,7 +261,7 @@ panel_launcher_motion_handler(struct widget *widget, struct input *input,
 static void
 set_hex_color(cairo_t *cr, uint32_t color)
 {
-	cairo_set_source_rgba(cr, 
+	cairo_set_source_rgba(cr,
 			      ((color >> 16) & 0xff) / 255.0,
 			      ((color >>  8) & 0xff) / 255.0,
 			      ((color >>  0) & 0xff) / 255.0,
