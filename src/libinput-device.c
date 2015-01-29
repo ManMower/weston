@@ -541,9 +541,10 @@ void
 evdev_notify_keyboard_focus(struct weston_seat *seat,
 			    struct wl_list *evdev_devices)
 {
+	struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
 	struct wl_array keys;
 
-	if (seat->keyboard_device_count == 0)
+	if (!keyboard)
 		return;
 
 	wl_array_init(&keys);

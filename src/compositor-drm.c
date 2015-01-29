@@ -1893,16 +1893,20 @@ setup_output_seat_constraint(struct drm_compositor *ec,
 			     const char *s)
 {
 	if (strcmp(s, "") != 0) {
+		struct weston_pointer *pointer;
 		struct udev_seat *seat;
 
 		seat = udev_seat_get_named(&ec->input, s);
-		if (seat)
-			seat->base.output = output;
+		if (!seat)
+			return;
 
-		if (seat && seat->base.pointer)
-			weston_pointer_clamp(seat->base.pointer,
-					     &seat->base.pointer->x,
-					     &seat->base.pointer->y);
+		seat->base.output = output;
+
+		pointer = weston_seat_get_pointer(&seat->base);
+		if (pointer)
+			weston_pointer_clamp(pointer,
+					     &pointer->x,
+					     &pointer->y);
 	}
 }
 

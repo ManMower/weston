@@ -131,6 +131,7 @@ static void
 trigger_binding(struct weston_seat *seat, uint32_t time, uint32_t key,
 		void *data)
 {
+	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
 	const char *prefix = "surfaceshot-";
 	const char *suffix = ".pam";
 	char fname[1024];
@@ -143,12 +144,10 @@ trigger_binding(struct weston_seat *seat, uint32_t time, uint32_t key,
 	int ret;
 	FILE *fp;
 
-	if (seat->pointer_device_count == 0 ||
-	    !seat->pointer ||
-	    !seat->pointer->focus)
+	if (!pointer || !pointer->focus)
 		return;
 
-	surface = seat->pointer->focus->surface;
+	surface = pointer->focus->surface;
 
 	weston_surface_get_content_size(surface, &width, &height);
 

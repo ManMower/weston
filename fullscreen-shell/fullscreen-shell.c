@@ -95,12 +95,16 @@ seat_caps_changed(struct wl_listener *l, void *data)
 	struct pointer_focus_listener *listener;
 	struct fs_output *fsout;
 
+	/* This function is one of the few places where seat->pointer_resource
+	 * and seat->keyboard_resource should be tested directly instead of
+	 * seat->*_device_count.
+	 */
 	listener = container_of(l, struct pointer_focus_listener, seat_caps);
 
 	/* no pointer */
-	if (seat->pointer) {
+	if (seat->pointer_resource) {
 		if (!listener->pointer_focus.link.prev) {
-			wl_signal_add(&seat->pointer->focus_signal,
+			wl_signal_add(&seat->pointer_resource->focus_signal,
 				      &listener->pointer_focus);
 		}
 	} else {
@@ -109,7 +113,8 @@ seat_caps_changed(struct wl_listener *l, void *data)
 		}
 	}
 
-	if (seat->keyboard && seat->keyboard->focus != NULL) {
+	if (seat->keyboard_resource &&
+	    seat->keyboard_resource->focus != NULL) {
 		wl_list_for_each(fsout, &listener->shell->output_list, link) {
 			if (fsout->surface) {
 				weston_surface_activate(fsout->surface, seat);
@@ -677,7 +682,10 @@ fullscreen_shell_present_surface(struct wl_client *client,
 
 	if (surface) {
 		wl_list_for_each(seat, &shell->compositor->seat_list, link) {
-			if (seat->keyboard && seat->keyboard->focus == NULL)
+			struct weston_keyboard *keyboard =
+						weston_seat_get_keyboard(seat);
+
+			if (keyboard && keyboard->focus == NULL)
 				weston_surface_activate(surface, seat);
 		}
 	}
@@ -725,7 +733,10 @@ fullscreen_shell_present_surface_for_mode(struct wl_client *client,
 				       fsout, mode_feedback_destroyed);
 
 	wl_list_for_each(seat, &shell->compositor->seat_list, link) {
-		if (seat->keyboard && seat->keyboard->focus == NULL)
+		struct weston_keyboard *keyboard =
+						weston_seat_get_keyboard(seat);
+
+		if (keyboard && keyboard->focus == NULL)
 			weston_surface_activate(surface, seat);
 	}
 }

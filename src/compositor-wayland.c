@@ -1418,6 +1418,7 @@ input_handle_keymap(void *data, struct wl_keyboard *keyboard, uint32_t format,
 		    int fd, uint32_t size)
 {
 	struct wayland_input *input = data;
+	struct weston_keyboard *weston_keyboard;
 	struct xkb_keymap *keymap;
 	char *map_str;
 
@@ -1456,7 +1457,8 @@ input_handle_keymap(void *data, struct wl_keyboard *keyboard, uint32_t format,
 
 	close(fd);
 
-	if (input->base.keyboard)
+	weston_keyboard = weston_seat_get_keyboard(&input->base);
+	if (weston_keyboard)
 		weston_seat_update_keymap(&input->base, keymap);
 	else
 		weston_seat_init_keyboard(&input->base, keymap);
@@ -1551,6 +1553,7 @@ input_handle_modifiers(void *data, struct wl_keyboard *keyboard,
 		       uint32_t mods_latched, uint32_t mods_locked,
 		       uint32_t group)
 {
+	struct weston_keyboard *weston_keyboard;
 	struct wayland_input *input = data;
 	struct wayland_compositor *c = input->compositor;
 	uint32_t serial_out;
@@ -1563,7 +1566,8 @@ input_handle_modifiers(void *data, struct wl_keyboard *keyboard,
 	else
 		serial_out = wl_display_next_serial(c->base.wl_display);
 
-	xkb_state_update_mask(input->base.keyboard->xkb_state.state,
+	weston_keyboard = weston_seat_get_keyboard(&input->base);
+	xkb_state_update_mask(weston_keyboard->xkb_state.state,
 			      mods_depressed, mods_latched,
 			      mods_locked, 0, 0, group);
 	notify_modifiers(&input->base, serial_out);

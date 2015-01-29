@@ -360,10 +360,11 @@ shell_grab_start(struct shell_grab *grab,
 		 enum desktop_shell_cursor cursor)
 {
 	struct desktop_shell *shell = shsurf->shell;
+	struct weston_touch *touch = weston_seat_get_touch(pointer->seat);
 
 	popup_grab_end(pointer);
-	if (pointer->seat->touch)
-		touch_popup_grab_end(pointer->seat->touch);
+	if (touch)
+		touch_popup_grab_end(touch);
 
 	grab->grab.interface = interface;
 	grab->shsurf = shsurf;
@@ -527,10 +528,11 @@ shell_touch_grab_start(struct shell_touch_grab *grab,
 		       struct weston_touch *touch)
 {
 	struct desktop_shell *shell = shsurf->shell;
+	struct weston_pointer *pointer = weston_seat_get_pointer(touch->seat);
 
 	touch_popup_grab_end(touch);
-	if (touch->seat->pointer)
-		popup_grab_end(touch->seat->pointer);
+	if (pointer)
+		popup_grab_end(pointer);
 
 	grab->grab.interface = interface;
 	grab->shsurf = shsurf;
@@ -889,27 +891,33 @@ restore_focus_state(struct desktop_shell *shell, struct workspace *ws)
 	wl_list_init(&shell->compositor->seat_list);
 
 	wl_list_for_each_safe(state, next, &ws->focus_list, link) {
+		struct weston_keyboard *keyboard =
+					weston_seat_get_keyboard(state->seat);
+
 		wl_list_remove(&state->seat->link);
 		wl_list_insert(&shell->compositor->seat_list,
 			       &state->seat->link);
 
-		if (state->seat->keyboard == NULL)
+		if (!keyboard)
 			continue;
 
 		surface = state->keyboard_focus;
 
-		weston_keyboard_set_focus(state->seat->keyboard, surface);
+		weston_keyboard_set_focus(keyboard, surface);
 	}
 
 	/* For any remaining seats that we don't have a focus state
 	 * for we'll reset the keyboard focus to NULL */
 	wl_list_for_each_safe(seat, next_seat, &pending_seat_list, link) {
+		struct weston_keyboard *keyboard =
+						weston_seat_get_keyboard(seat);
+
 		wl_list_insert(&shell->compositor->seat_list, &seat->link);
 
-		if (seat->keyboard == NULL)
+		if (!keyboard)
 			continue;
 
-		weston_keyboard_set_focus(seat->keyboard, NULL);
+		weston_keyboard_set_focus(keyboard, NULL);
 	}
 }
 
@@ -921,7 +929,10 @@ replace_focus_state(struct desktop_shell *shell, struct workspace *ws,
 
 	wl_list_for_each(state, &ws->focus_list, link) {
 		if (state->seat == seat) {
-			focus_state_set_focus(state, seat->keyboard->focus);
+			struct weston_keyboard *keyboard =
+						weston_seat_get_keyboard(seat);
+
+			focus_state_set_focus(state, keyboard->focus);
 			return;
 		}
 	}
@@ -1420,12 +1431,15 @@ move_surface_to_workspace(struct desktop_shell *shell,
 
 	drop_focus_state(shell, from, view->surface);
 	wl_list_for_each(seat, &shell->compositor->seat_list, link) {
-		if (!seat->keyboard)
+		struct weston_keyboard *keyboard =
+						weston_seat_get_keyboard(seat);
+
+		if (!keyboard)
 			continue;
 
-		focus = weston_surface_get_main_surface(seat->keyboard->focus);
+		focus = weston_surface_get_main_surface(keyboard->focus);
 		if (focus == view->surface)
-			weston_keyboard_set_focus(seat->keyboard, NULL);
+			weston_keyboard_set_focus(keyboard, NULL);
 	}
 
 	weston_view_damage_below(view);
@@ -1436,6 +1450,7 @@ take_surface_to_workspace_by_seat(struct desktop_shell *shell,
 				  struct weston_seat *seat,
 				  unsigned int index)
 {
+	struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
 	struct weston_surface *surface;
 	struct weston_view *view;
 	struct shell_surface *shsurf;
@@ -1443,7 +1458,7 @@ take_surface_to_workspace_by_seat(struct desktop_shell *shell,
 	struct workspace *to;
 	struct focus_state *state;
 
-	surface = weston_surface_get_main_surface(seat->keyboard->focus);
+	surface = weston_surface_get_main_surface(keyboard->focus);
 	view = get_default_view(surface);
 	if (view == NULL ||
 	    index == shell->workspaces.current ||
@@ -1624,6 +1639,7 @@ static int
 surface_touch_move(struct shell_surface *shsurf, struct weston_seat *seat)
 {
 	struct weston_touch_move_grab *move;
+	struct weston_touch *touch = weston_seat_get_touch(seat);
 
 	if (!shsurf)
 		return -1;
@@ -1637,12 +1653,12 @@ surface_touch_move(struct shell_surface *shsurf, struct weston_seat *seat)
 
 	move->active = 1;
 	move->dx = wl_fixed_from_double(shsurf->view->geometry.x) -
-			seat->touch->grab_x;
+					touch->grab_x;
 	move->dy = wl_fixed_from_double(shsurf->view->geometry.y) -
-			seat->touch->grab_y;
+					touch->grab_y;
 
 	shell_touch_grab_start(&move->base, &touch_move_grab_interface, shsurf,
-			       seat->touch);
+			       touch);
 
 	return 0;
 }
@@ -1738,6 +1754,7 @@ static int
 surface_move(struct shell_surface *shsurf, struct weston_seat *seat,
 	     int client_initiated)
 {
+	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
 	struct weston_move_grab *move;
 
 	if (!shsurf)
@@ -1752,13 +1769,13 @@ surface_move(struct shell_surface *shsurf, struct weston_seat *seat,
 		return -1;
 
 	move->dx = wl_fixed_from_double(shsurf->view->geometry.x) -
-			seat->pointer->grab_x;
+					pointer->grab_x;
 	move->dy = wl_fixed_from_double(shsurf->view->geometry.y) -
-			seat->pointer->grab_y;
+					pointer->grab_y;
 	move->client_initiated = client_initiated;
 
 	shell_grab_start(&move->base, &move_grab_interface, shsurf,
-			 seat->pointer, DESKTOP_SHELL_CURSOR_MOVE);
+			 pointer, DESKTOP_SHELL_CURSOR_MOVE);
 
 	return 0;
 }
@@ -1768,21 +1785,23 @@ common_surface_move(struct wl_resource *resource,
 		    struct wl_resource *seat_resource, uint32_t serial)
 {
 	struct weston_seat *seat = wl_resource_get_user_data(seat_resource);
+	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
+	struct weston_touch *touch = weston_seat_get_touch(seat);
 	struct shell_surface *shsurf = wl_resource_get_user_data(resource);
 	struct weston_surface *surface;
 
-	if (seat->pointer &&
-	    seat->pointer->focus &&
-	    seat->pointer->button_count > 0 &&
-	    seat->pointer->grab_serial == serial) {
-		surface = weston_surface_get_main_surface(seat->pointer->focus->surface);
+	if (pointer &&
+	    pointer->focus &&
+	    pointer->button_count > 0 &&
+	    pointer->grab_serial == serial) {
+		surface = weston_surface_get_main_surface(pointer->focus->surface);
 		if ((surface == shsurf->surface) &&
 		    (surface_move(shsurf, seat, 1) < 0))
 			wl_resource_post_no_memory(resource);
-	} else if (seat->touch &&
-		   seat->touch->focus &&
-		   seat->touch->grab_serial == serial) {
-		surface = weston_surface_get_main_surface(seat->touch->focus->surface);
+	} else if (touch &&
+		   touch->focus &&
+		   touch->grab_serial == serial) {
+		surface = weston_surface_get_main_surface(touch->focus->surface);
 		if ((surface == shsurf->surface) &&
 		    (surface_touch_move(shsurf, seat) < 0))
 			wl_resource_post_no_memory(resource);
@@ -1932,6 +1951,7 @@ static int
 surface_resize(struct shell_surface *shsurf,
 	       struct weston_seat *seat, uint32_t edges)
 {
+	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
 	struct weston_resize_grab *resize;
 	const unsigned resize_topbottom =
 		WL_SHELL_SURFACE_RESIZE_TOP | WL_SHELL_SURFACE_RESIZE_BOTTOM;
@@ -1961,7 +1981,7 @@ surface_resize(struct shell_surface *shsurf,
 	shsurf->resize_edges = edges;
 	shell_surface_state_changed(shsurf);
 	shell_grab_start(&resize->base, &resize_grab_interface, shsurf,
-			 seat->pointer, edges);
+			 pointer, edges);
 
 	return 0;
 }
@@ -1973,15 +1993,16 @@ common_surface_resize(struct wl_resource *resource,
 {
 	struct weston_seat *seat = wl_resource_get_user_data(seat_resource);
 	struct shell_surface *shsurf = wl_resource_get_user_data(resource);
+	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
 	struct weston_surface *surface;
 
-	if (seat->pointer == NULL ||
-	    seat->pointer->button_count == 0 ||
-	    seat->pointer->grab_serial != serial ||
-	    seat->pointer->focus == NULL)
+	if (!pointer ||
+	    pointer->button_count == 0 ||
+	    pointer->grab_serial != serial ||
+	    pointer->focus == NULL)
 		return;
 
-	surface = weston_surface_get_main_surface(seat->pointer->focus->surface);
+	surface = weston_surface_get_main_surface(pointer->focus->surface);
 	if (surface != shsurf->surface)
 		return;
 
@@ -2081,10 +2102,12 @@ end_busy_cursor(struct weston_compositor *compositor, struct wl_client *client)
 	struct weston_seat *seat;
 
 	wl_list_for_each(seat, &compositor->seat_list, link) {
-		if (seat->pointer == NULL)
+		struct weston_pointer *pointer = weston_seat_get_pointer(seat);
+
+		if (!pointer)
 			continue;
 
-		grab = (struct shell_grab *) seat->pointer->grab;
+		grab = (struct shell_grab *)pointer->grab;
 		if (grab->grab.interface == &busy_cursor_grab_interface &&
 		    wl_resource_get_client(grab->shsurf->resource) == client) {
 			shell_grab_end(grab);
@@ -2106,15 +2129,17 @@ xdg_ping_timeout_handler(void *data)
 	/* Client is not responding */
 	sc->unresponsive = 1;
 	wl_list_for_each(seat, &sc->shell->compositor->seat_list, link) {
-		if (seat->pointer == NULL || seat->pointer->focus == NULL)
+		struct weston_pointer *pointer = weston_seat_get_pointer(seat);
+
+		if (!pointer || pointer->focus == NULL)
 			continue;
-		if (seat->pointer->focus->surface->resource == NULL)
+		if (pointer->focus->surface->resource == NULL)
 			continue;
-		
-		shsurf = get_shell_surface(seat->pointer->focus->surface);
+
+		shsurf = get_shell_surface(pointer->focus->surface);
 		if (shsurf &&
 		    wl_resource_get_client(shsurf->resource) == sc->client)
-			set_busy_cursor(shsurf, seat->pointer);
+			set_busy_cursor(shsurf, pointer);
 	}
 
 	return 1;
@@ -2669,11 +2694,14 @@ set_minimized(struct weston_surface *surface)
 
 	drop_focus_state(shsurf->shell, current_ws, view->surface);
 	wl_list_for_each(seat, &shsurf->shell->compositor->seat_list, link) {
-		if (!seat->keyboard)
+		struct weston_keyboard *keyboard =
+					weston_seat_get_keyboard(seat);
+
+		if (!keyboard)
 			continue;
-		focus = weston_surface_get_main_surface(seat->keyboard->focus);
+		focus = weston_surface_get_main_surface(keyboard->focus);
 		if (focus == view->surface)
-			weston_keyboard_set_focus(seat->keyboard, NULL);
+			weston_keyboard_set_focus(keyboard, NULL);
 	}
 
 	shell_surface_update_child_surface_layers(shsurf);
@@ -3004,17 +3032,22 @@ get_focused_output(struct weston_compositor *compositor)
 	struct weston_output *output = NULL;
 
 	wl_list_for_each(seat, &compositor->seat_list, link) {
+		struct weston_touch *touch = weston_seat_get_touch(seat);
+		struct weston_pointer *pointer = weston_seat_get_pointer(seat);
+		struct weston_keyboard *keyboard =
+						weston_seat_get_keyboard(seat);
+
 		/* Priority has touch focus, then pointer and
 		 * then keyboard focus. We should probably have
 		 * three for loops and check frist for touch,
 		 * then for pointer, etc. but unless somebody has some
 		 * objections, I think this is sufficient. */
-		if (seat->touch && seat->touch->focus)
-			output = seat->touch->focus->output;
-		else if (seat->pointer && seat->pointer->focus)
-			output = seat->pointer->focus->output;
-		else if (seat->keyboard && seat->keyboard->focus)
-			output = seat->keyboard->focus->output;
+		if (touch && touch->focus)
+			output = touch->focus->output;
+		else if (pointer && pointer->focus)
+			output = pointer->focus->output;
+		else if (keyboard && keyboard->focus)
+			output = keyboard->focus->output;
 
 		if (output)
 			break;
@@ -3081,19 +3114,22 @@ shell_seat_caps_changed(struct wl_listener *listener, void *data)
 
 	seat = container_of(listener, struct shell_seat, caps_changed_listener);
 
-	if (seat->seat->keyboard &&
+	/* this is one of the few places where seat->keyboard_resource and
+	 * seat->pointer_resource should be tested directly, instead of
+	 * through weston_seat_get_* */
+	if (seat->seat->keyboard_resource &&
 	    wl_list_empty(&seat->keyboard_focus_listener.link)) {
-		wl_signal_add(&seat->seat->keyboard->focus_signal,
+		wl_signal_add(&seat->seat->keyboard_resource->focus_signal,
 			      &seat->keyboard_focus_listener);
-	} else if (!seat->seat->keyboard) {
+	} else if (!seat->seat->keyboard_resource) {
 		wl_list_init(&seat->keyboard_focus_listener.link);
 	}
 
-	if (seat->seat->pointer &&
+	if (seat->seat->pointer_resource &&
 	    wl_list_empty(&seat->pointer_focus_listener.link)) {
-		wl_signal_add(&seat->seat->pointer->focus_signal,
+		wl_signal_add(&seat->seat->pointer_resource->focus_signal,
 			      &seat->pointer_focus_listener);
-	} else if (!seat->seat->pointer) {
+	} else if (!seat->seat->pointer_resource) {
 		wl_list_init(&seat->pointer_focus_listener.link);
 	}
 }
@@ -3197,6 +3233,7 @@ popup_grab_button(struct weston_pointer_grab *grab,
 	struct shell_seat *shseat =
 	    container_of(grab, struct shell_seat, popup_grab.grab);
 	struct wl_display *display = shseat->seat->compositor->wl_display;
+	struct weston_pointer *pointer = weston_seat_get_pointer(shseat->seat);
 	enum wl_pointer_button_state state = state_w;
 	uint32_t serial;
 	struct wl_list *resource_list;
@@ -3210,7 +3247,7 @@ popup_grab_button(struct weston_pointer_grab *grab,
 		}
 	} else if (state == WL_POINTER_BUTTON_STATE_RELEASED &&
 		   (shseat->popup_grab.initial_up ||
-		    time - shseat->seat->pointer->grab_time > 500)) {
+		    time - pointer->grab_time > 500)) {
 		popup_grab_end(grab->pointer);
 	}
 
@@ -3389,6 +3426,8 @@ add_popup_grab(struct shell_surface *shsurf,
 {
 	struct weston_seat *seat = shseat->seat;
 	struct shell_surface *parent, *top_surface;
+	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
+	struct weston_touch *touch = weston_seat_get_touch(seat);
 
 	parent = get_shell_surface(shsurf->parent);
 	top_surface = get_top_popup(shseat);
@@ -3415,7 +3454,7 @@ add_popup_grab(struct shell_surface *shsurf,
 			/* We must make sure here that this popup was opened
 			 * after a mouse press, and not just by moving around
 			 * with other popups already open. */
-			if (shseat->seat->pointer->button_count > 0)
+			if (pointer->button_count > 0)
 				shseat->popup_grab.initial_up = 0;
 		} else if (type == TOUCH) {
 			shseat->popup_grab.touch_grab.interface =
@@ -3426,10 +3465,10 @@ add_popup_grab(struct shell_surface *shsurf,
 			       &shsurf->popup.grab_link);
 
 		if (type == POINTER) {
-			weston_pointer_start_grab(seat->pointer,
+			weston_pointer_start_grab(pointer,
 						  &shseat->popup_grab.grab);
 		} else if (type == TOUCH) {
-			weston_touch_start_grab(seat->touch,
+			weston_touch_start_grab(touch,
 						&shseat->popup_grab.touch_grab);
 		}
 	} else {
@@ -3472,6 +3511,8 @@ shell_map_popup(struct shell_surface *shsurf)
 {
 	struct shell_seat *shseat = shsurf->popup.shseat;
 	struct weston_view *parent_view = get_default_view(shsurf->parent);
+	struct weston_pointer *pointer = weston_seat_get_pointer(shseat->seat);
+	struct weston_touch *touch = weston_seat_get_touch(shseat->seat);
 
 	shsurf->surface->output = parent_view->output;
 	shsurf->view->output = parent_view->output;
@@ -3480,12 +3521,10 @@ shell_map_popup(struct shell_surface *shsurf)
 	weston_view_set_position(shsurf->view, shsurf->popup.x, shsurf->popup.y);
 	weston_view_update_transform(shsurf->view);
 
-	if (shseat->seat->pointer &&
-	    shseat->seat->pointer->grab_serial == shsurf->popup.serial) {
+	if (pointer && pointer->grab_serial == shsurf->popup.serial) {
 		if (add_popup_grab(shsurf, shseat, POINTER) != 0)
 			return -1;
-	} else if (shseat->seat->touch &&
-	           shseat->seat->touch->grab_serial == shsurf->popup.serial) {
+	} else if (touch && touch->grab_serial == shsurf->popup.serial) {
 		if (add_popup_grab(shsurf, shseat, TOUCH) != 0)
 			return -1;
 	} else {
@@ -4599,14 +4638,15 @@ get_shell_surface_type(struct weston_surface *surface)
 static void
 move_binding(struct weston_seat *seat, uint32_t time, uint32_t button, void *data)
 {
+	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
 	struct weston_surface *focus;
 	struct weston_surface *surface;
 	struct shell_surface *shsurf;
 
-	if (seat->pointer->focus == NULL)
+	if (pointer->focus == NULL)
 		return;
 
-	focus = seat->pointer->focus->surface;
+	focus = pointer->focus->surface;
 
 	surface = weston_surface_get_main_surface(focus);
 	if (surface == NULL)
@@ -4623,7 +4663,8 @@ move_binding(struct weston_seat *seat, uint32_t time, uint32_t button, void *dat
 static void
 maximize_binding(struct weston_seat *seat, uint32_t time, uint32_t button, void *data)
 {
-	struct weston_surface *focus = seat->keyboard->focus;
+	struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
+	struct weston_surface *focus = keyboard->focus;
 	struct weston_surface *surface;
 	struct shell_surface *shsurf;
 
@@ -4646,7 +4687,8 @@ maximize_binding(struct weston_seat *seat, uint32_t time, uint32_t button, void 
 static void
 fullscreen_binding(struct weston_seat *seat, uint32_t time, uint32_t button, void *data)
 {
-	struct weston_surface *focus = seat->keyboard->focus;
+	struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
+	struct weston_surface *focus = keyboard->focus;
 	struct weston_surface *surface;
 	struct shell_surface *shsurf;
 
@@ -4673,11 +4715,12 @@ touch_move_binding(struct weston_seat *seat, uint32_t time, void *data)
 	struct weston_surface *focus;
 	struct weston_surface *surface;
 	struct shell_surface *shsurf;
+	struct weston_touch *touch = weston_seat_get_touch(seat);
 
-	if (seat->touch->focus == NULL)
+	if (touch->focus == NULL)
 		return;
 
-	focus = seat->touch->focus->surface;
+	focus = touch->focus->surface;
 	surface = weston_surface_get_main_surface(focus);
 	if (surface == NULL)
 		return;
@@ -4695,14 +4738,15 @@ resize_binding(struct weston_seat *seat, uint32_t time, uint32_t button, void *d
 {
 	struct weston_surface *focus;
 	struct weston_surface *surface;
+	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
 	uint32_t edges = 0;
 	int32_t x, y;
 	struct shell_surface *shsurf;
 
-	if (seat->pointer->focus == NULL)
+	if (pointer->focus == NULL)
 		return;
 
-	focus = seat->pointer->focus->surface;
+	focus = pointer->focus->surface;
 
 	surface = weston_surface_get_main_surface(focus);
 	if (surface == NULL)
@@ -4714,8 +4758,8 @@ resize_binding(struct weston_seat *seat, uint32_t time, uint32_t button, void *d
 		return;
 
 	weston_view_from_global(shsurf->view,
-				wl_fixed_to_int(seat->pointer->grab_x),
-				wl_fixed_to_int(seat->pointer->grab_y),
+				wl_fixed_to_int(pointer->grab_x),
+				wl_fixed_to_int(pointer->grab_y),
 				&x, &y);
 
 	if (x < shsurf->surface->width / 3)
@@ -4741,7 +4785,8 @@ surface_opacity_binding(struct weston_seat *seat, uint32_t time, uint32_t axis,
 {
 	float step = 0.005;
 	struct shell_surface *shsurf;
-	struct weston_surface *focus = seat->pointer->focus->surface;
+	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
+	struct weston_surface *focus = pointer->focus->surface;
 	struct weston_surface *surface;
 
 	/* XXX: broken for windows containing sub-surfaces */
@@ -4769,18 +4814,19 @@ do_zoom(struct weston_seat *seat, uint32_t time, uint32_t key, uint32_t axis,
 	wl_fixed_t value)
 {
 	struct weston_compositor *compositor = seat->compositor;
+	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
 	struct weston_output *output;
 	float increment;
 
-	if (!seat->pointer) {
+	if (!pointer) {
 		weston_log("Zoom hotkey pressed but seat '%s' contains no pointer.\n", seat->seat_name);
 		return;
 	}
 
 	wl_list_for_each(output, &compositor->output_list, link) {
 		if (pixman_region32_contains_point(&output->region,
-						   wl_fixed_to_double(seat->pointer->x),
-						   wl_fixed_to_double(seat->pointer->y),
+						   wl_fixed_to_double(pointer->x),
+						   wl_fixed_to_double(pointer->y),
 						   NULL)) {
 			if (key == KEY_PAGEUP)
 				increment = output->zoom.increment;
@@ -4938,6 +4984,7 @@ static const struct weston_pointer_grab_interface rotate_grab_interface = {
 static void
 surface_rotate(struct shell_surface *surface, struct weston_seat *seat)
 {
+	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
 	struct rotate_grab *rotate;
 	float dx, dy;
 	float r;
@@ -4951,8 +4998,8 @@ surface_rotate(struct shell_surface *surface, struct weston_seat *seat)
 				    surface->surface->height * 0.5f,
 				    &rotate->center.x, &rotate->center.y);
 
-	dx = wl_fixed_to_double(seat->pointer->x) - rotate->center.x;
-	dy = wl_fixed_to_double(seat->pointer->y) - rotate->center.y;
+	dx = wl_fixed_to_double(pointer->x) - rotate->center.x;
+	dy = wl_fixed_to_double(pointer->y) - rotate->center.y;
 	r = sqrtf(dx * dx + dy * dy);
 	if (r > 20.0f) {
 		struct weston_matrix inverse;
@@ -4969,7 +5016,7 @@ surface_rotate(struct shell_surface *surface, struct weston_seat *seat)
 	}
 
 	shell_grab_start(&rotate->base, &rotate_grab_interface, surface,
-			 seat->pointer, DESKTOP_SHELL_CURSOR_ARROW);
+			 pointer, DESKTOP_SHELL_CURSOR_ARROW);
 }
 
 static void
@@ -4979,11 +5026,12 @@ rotate_binding(struct weston_seat *seat, uint32_t time, uint32_t button,
 	struct weston_surface *focus;
 	struct weston_surface *base_surface;
 	struct shell_surface *surface;
+	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
 
-	if (seat->pointer->focus == NULL)
+	if (pointer->focus == NULL)
 		return;
 
-	focus = seat->pointer->focus->surface;
+	focus = pointer->focus->surface;
 
 	base_surface = weston_surface_get_main_surface(focus);
 	if (base_surface == NULL)
@@ -5121,23 +5169,27 @@ static void
 click_to_activate_binding(struct weston_seat *seat, uint32_t time, uint32_t button,
 			  void *data)
 {
-	if (seat->pointer->grab != &seat->pointer->default_grab)
+	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
+
+	if (pointer->grab != &pointer->default_grab)
 		return;
-	if (seat->pointer->focus == NULL)
+	if (pointer->focus == NULL)
 		return;
 
-	activate_binding(seat, data, seat->pointer->focus->surface);
+	activate_binding(seat, data, pointer->focus->surface);
 }
 
 static void
 touch_to_activate_binding(struct weston_seat *seat, uint32_t time, void *data)
 {
-	if (seat->touch->grab != &seat->touch->default_grab)
+	struct weston_touch *touch = weston_seat_get_touch(seat);
+
+	if (touch->grab != &touch->default_grab)
 		return;
-	if (seat->touch->focus == NULL)
+	if (touch->focus == NULL)
 		return;
 
-	activate_binding(seat, data, seat->touch->focus->surface);
+	activate_binding(seat, data, touch->focus->surface);
 }
 
 static void
@@ -5146,10 +5198,13 @@ unfocus_all_seats(struct desktop_shell *shell)
 	struct weston_seat *seat, *next;
 
 	wl_list_for_each_safe(seat, next, &shell->compositor->seat_list, link) {
-		if (seat->keyboard == NULL)
+		struct weston_keyboard *keyboard =
+						weston_seat_get_keyboard(seat);
+
+		if (!keyboard)
 			continue;
 
-		weston_keyboard_set_focus(seat->keyboard, NULL);
+		weston_keyboard_set_focus(keyboard, NULL);
 	}
 }
 
@@ -5377,10 +5432,14 @@ idle_handler(struct wl_listener *listener, void *data)
 	struct weston_seat *seat;
 
 	wl_list_for_each(seat, &shell->compositor->seat_list, link) {
-		if (seat->pointer)
-			popup_grab_end(seat->pointer);
-		if (seat->touch)
-			touch_popup_grab_end(seat->touch);
+		struct weston_touch *touch = weston_seat_get_touch(seat);
+		struct weston_pointer *pointer = weston_seat_get_pointer(seat);
+
+		if (pointer)
+			popup_grab_end(pointer);
+
+		if (touch)
+			touch_popup_grab_end(touch);
 	}
 
 	shell_fade(shell, FADE_OUT);
@@ -5428,9 +5487,11 @@ weston_view_set_initial_position(struct weston_view *view,
 	 * TODO: Do something clever for touch too?
 	 */
 	wl_list_for_each(seat, &compositor->seat_list, link) {
-		if (seat->pointer) {
-			ix = wl_fixed_to_int(seat->pointer->x);
-			iy = wl_fixed_to_int(seat->pointer->y);
+		struct weston_pointer *pointer = weston_seat_get_pointer(seat);
+
+		if (pointer) {
+			ix = wl_fixed_to_int(pointer->x);
+			iy = wl_fixed_to_int(pointer->y);
 			break;
 		}
 	}
@@ -6112,6 +6173,7 @@ switcher_binding(struct weston_seat *seat, uint32_t time, uint32_t key,
 {
 	struct desktop_shell *shell = data;
 	struct switcher *switcher;
+	struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
 
 	switcher = malloc(sizeof *switcher);
 	switcher->shell = shell;
@@ -6123,8 +6185,8 @@ switcher_binding(struct weston_seat *seat, uint32_t time, uint32_t key,
 	restore_all_output_modes(shell->compositor);
 	lower_fullscreen_layer(switcher->shell);
 	switcher->grab.interface = &switcher_grab;
-	weston_keyboard_start_grab(seat->keyboard, &switcher->grab);
-	weston_keyboard_set_focus(seat->keyboard, NULL);
+	weston_keyboard_start_grab(keyboard, &switcher->grab);
+	weston_keyboard_set_focus(keyboard, NULL);
 	switcher_next(switcher);
 }
 
@@ -6165,13 +6227,13 @@ static void
 force_kill_binding(struct weston_seat *seat, uint32_t time, uint32_t key,
 		   void *data)
 {
-	struct weston_surface *focus_surface;
+	struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
+	struct weston_surface *focus_surface = keyboard->focus;
 	struct wl_client *client;
 	struct desktop_shell *shell = data;
 	struct weston_compositor *compositor = shell->compositor;
 	pid_t pid;
 
-	focus_surface = seat->keyboard->focus;
 	if (!focus_surface)
 		return;
 

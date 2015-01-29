@@ -146,7 +146,7 @@ static void weston_mode_switch_finish(struct weston_output *output,
 	/* If a pointer falls outside the outputs new geometry, move it to its
 	 * lower-right corner */
 	wl_list_for_each(seat, &output->compositor->seat_list, link) {
-		struct weston_pointer *pointer = seat->pointer;
+		struct weston_pointer *pointer = weston_seat_get_pointer(seat);
 		int32_t x, y;
 
 		if (!pointer)
@@ -1806,14 +1806,19 @@ weston_view_unmap(struct weston_view *view)
 		return;
 
 	wl_list_for_each(seat, &view->surface->compositor->seat_list, link) {
-		if (seat->keyboard && seat->keyboard->focus == view->surface)
-			weston_keyboard_set_focus(seat->keyboard, NULL);
-		if (seat->pointer && seat->pointer->focus == view)
-			weston_pointer_set_focus(seat->pointer,
+		struct weston_touch *touch = weston_seat_get_touch(seat);
+		struct weston_pointer *pointer = weston_seat_get_pointer(seat);
+		struct weston_keyboard *keyboard =
+						weston_seat_get_keyboard(seat);
+
+		if (keyboard && keyboard->focus == view->surface)
+			weston_keyboard_set_focus(keyboard, NULL);
+		if (pointer && pointer->focus == view)
+			weston_pointer_set_focus(pointer,
 						 NULL,
 						 wl_fixed_from_int(0),
 						 wl_fixed_from_int(0));
-		if (seat->touch && seat->touch->focus == view)
+		if (touch && touch->focus == view)
 			weston_touch_set_focus(seat, NULL);
 	}
 }
@@ -4642,8 +4647,10 @@ weston_compositor_set_default_pointer_grab(struct weston_compositor *ec,
 
 	ec->default_pointer_grab = interface;
 	wl_list_for_each(seat, &ec->seat_list, link) {
-		if (seat->pointer) {
-			weston_pointer_set_default_grab(seat->pointer,
+		struct weston_pointer *pointer = weston_seat_get_pointer(seat);
+
+		if (pointer) {
+			weston_pointer_set_default_grab(pointer,
 							interface);
 		}
 	}
@@ -5250,6 +5257,72 @@ load_configuration(struct weston_config **config, int32_t noconfig,
 	return 0;
 }
 
+/** Get a seat's keyboard pointer
+ *
+ * \param seat The seat to query
+ * \return The seat's keyboard pointer, or NULL if no keyboard present
+ *
+ * The keyboard pointer for a seat isn't freed when all keyboards are removed,
+ * so should only be used when the seat's keyboard_device_count is greater
+ * than zero.  This function does that test and only returns a pointer
+ * when a keyboard is present.
+ */
+WL_EXPORT struct weston_keyboard *
+weston_seat_get_keyboard(struct weston_seat *seat)
+{
+	if (!seat)
+		return NULL;
+
+	if (seat->keyboard_device_count)
+		return seat->keyboard_resource;
+
+	return NULL;
+}
+
+/** Get a seat's pointer pointer
+ *
+ * \param seat The seat to query
+ * \return The seat's pointer pointer, or NULL if no pointing device present
+ *
+ * The pointer pointer for a seat isn't freed when all mice are removed,
+ * so should only be used when the seat's pointer_device_count is greater
+ * than zero.  This function does that test and only returns a pointer
+ * when a pointing device is present.
+ */
+WL_EXPORT struct weston_pointer *
+weston_seat_get_pointer(struct weston_seat *seat)
+{
+	if (!seat)
+		return NULL;
+
+	if (seat->pointer_device_count)
+		return seat->pointer_resource;
+
+	return NULL;
+}
+
+/** Get a seat's touch pointer
+ *
+ * \param seat The seat to query
+ * \return The seat's touch pointer, or NULL if no touch device present
+ *
+ * The touch pointer for a seat isn't freed when all touch devices are removed,
+ * so should only be used when the seat's touch_device_count is greater
+ * than zero.  This function does that test and only returns a pointer
+ * when a touch device is present.
+ */
+WL_EXPORT struct weston_touch *
+weston_seat_get_touch(struct weston_seat *seat)
+{
+	if (!seat)
+		return NULL;
+
+	if (seat->touch_device_count)
+		return seat->touch_resource;
+
+	return NULL;
+}
+
 int main(int argc, char *argv[])
 {
 	int ret = EXIT_FAILURE;
@@ -5410,8 +5483,11 @@ int main(int argc, char *argv[])
 	weston_config_section_get_bool(section, "numlock-on", &numlock_on, 0);
 	if (numlock_on) {
 		wl_list_for_each(seat, &ec->seat_list, link) {
-			if (seat->keyboard)
-				weston_keyboard_set_locks(seat->keyboard,
+			struct weston_keyboard *keyboard =
+						weston_seat_get_keyboard(seat);
+
+			if (keyboard)
+				weston_keyboard_set_locks(keyboard,
 							  WESTON_NUM_LOCK,
 							  WESTON_NUM_LOCK);
 		}

@@ -559,6 +559,7 @@ static void
 recorder_binding(struct weston_seat *seat, uint32_t time, uint32_t key, void *data)
 {
 	struct weston_compositor *ec = seat->compositor;
+	struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
 	struct weston_output *output;
 	struct wl_listener *listener = NULL;
 	struct weston_recorder *recorder;
@@ -582,9 +583,9 @@ recorder_binding(struct weston_seat *seat, uint32_t time, uint32_t key, void *da
 		recorder->destroying = 1;
 		weston_output_schedule_repaint(recorder->output);
 	} else {
-		if (seat->keyboard && seat->keyboard->focus &&
-		    seat->keyboard->focus->output)
-			output = seat->keyboard->focus->output;
+		if (keyboard && keyboard->focus &&
+		    keyboard->focus->output)
+			output = keyboard->focus->output;
 		else
 			output = container_of(ec->output_list.next,
 					      struct weston_output, link);

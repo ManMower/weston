@@ -1067,8 +1067,9 @@ share_output_binding(struct weston_seat *seat, uint32_t time, uint32_t key,
 {
 	struct weston_output *output;
 	struct screen_share *ss = data;
+	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
 
-	if (!seat->pointer) {
+	if (!pointer) {
 		weston_log("Cannot pick output: Seat does not have pointer\n");
 		return;
 	}

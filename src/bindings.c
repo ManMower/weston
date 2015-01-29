@@ -254,11 +254,12 @@ install_binding_grab(struct weston_seat *seat, uint32_t time, uint32_t key,
                      struct weston_surface *focus)
 {
 	struct binding_keyboard_grab *grab;
+	struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
 
 	grab = malloc(sizeof *grab);
 	grab->key = key;
 	grab->grab.interface = &binding_grab;
-	weston_keyboard_start_grab(seat->keyboard, &grab->grab);
+	weston_keyboard_start_grab(keyboard, &grab->grab);
 
 	/* Notify the surface which had the focus before this binding
 	 * triggered that we stole a keypress from under it, by forcing
@@ -268,9 +269,9 @@ install_binding_grab(struct weston_seat *seat, uint32_t time, uint32_t key,
 	 * If the old focus surface is different than the new one it
 	 * means it was changed in the binding handler, so it received
 	 * the enter event already. */
-	if (focus && seat->keyboard->focus == focus) {
-		weston_keyboard_set_focus(seat->keyboard, NULL);
-		weston_keyboard_set_focus(seat->keyboard, focus);
+	if (focus && keyboard->focus == focus) {
+		weston_keyboard_set_focus(keyboard, NULL);
+		weston_keyboard_set_focus(keyboard, focus);
 	}
 }
 
@@ -280,6 +281,7 @@ weston_compositor_run_key_binding(struct weston_compositor *compositor,
 				  uint32_t time, uint32_t key,
 				  enum wl_keyboard_key_state state)
 {
+	struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
 	struct weston_binding *b, *tmp;
 	struct weston_surface *focus;
 
@@ -293,14 +295,14 @@ weston_compositor_run_key_binding(struct weston_compositor *compositor,
 	wl_list_for_each_safe(b, tmp, &compositor->key_binding_list, link) {
 		if (b->key == key && b->modifier == seat->modifier_state) {
 			weston_key_binding_handler_t handler = b->handler;
-			focus = seat->keyboard->focus;
+			focus = keyboard->focus;
 			handler(seat, time, key, b->data);
 
 			/* If this was a key binding and it didn't
 			 * install a keyboard grab, install one now to
 			 * swallow the key press. */
-			if (seat->keyboard->grab ==
-			    &seat->keyboard->default_grab)
+			if (keyboard->grab ==
+			    &keyboard->default_grab)
 				install_binding_grab(seat, time, key, focus);
 		}
 	}
@@ -313,8 +315,9 @@ weston_compositor_run_modifier_binding(struct weston_compositor *compositor,
 				       enum wl_keyboard_key_state state)
 {
 	struct weston_binding *b, *tmp;
+	struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
 
-	if (seat->keyboard->grab != &seat->keyboard->default_grab)
+	if (keyboard->grab != &keyboard->default_grab)
 		return;
 
 	wl_list_for_each_safe(b, tmp, &compositor->modifier_binding_list, link) {
@@ -366,8 +369,9 @@ weston_compositor_run_touch_binding(struct weston_compositor *compositor,
 				    int touch_type)
 {
 	struct weston_binding *b, *tmp;
+	struct weston_touch *touch = weston_seat_get_touch(seat);
 
-	if (seat->touch->num_tp != 1 || touch_type != WL_TOUCH_DOWN)
+	if (touch->num_tp != 1 || touch_type != WL_TOUCH_DOWN)
 		return;
 
 	wl_list_for_each_safe(b, tmp, &compositor->touch_binding_list, link) {
@@ -539,6 +543,10 @@ static void
 debug_binding(struct weston_seat *seat, uint32_t time, uint32_t key, void *data)
 {
 	struct debug_binding_grab *grab;
+	struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
+
+	if (!keyboard)
+		return;
 
 	grab = calloc(1, sizeof *grab);
 	if (!grab)
@@ -547,7 +555,7 @@ debug_binding(struct weston_seat *seat, uint32_t time, uint32_t key, void *data)
 	grab->seat = seat;
 	grab->key[0] = key;
 	grab->grab.interface = &debug_binding_keyboard_grab;
-	weston_keyboard_start_grab(seat->keyboard, &grab->grab);
+	weston_keyboard_start_grab(keyboard, &grab->grab);
 }
 
 /** Install the trigger binding for debug bindings.
