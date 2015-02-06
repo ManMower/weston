@@ -158,9 +158,9 @@ text_input_set_surrounding_text(struct wl_client *client,
 				uint32_t anchor)
 {
 	struct text_input *text_input = wl_resource_get_user_data(resource);
-	struct input_method *input_method, *next;
+	struct input_method *input_method;
 
-	wl_list_for_each_safe(input_method, next, &text_input->input_methods, link) {
+	wl_list_for_each(input_method, &text_input->input_methods, link) {
 		if (!input_method->context)
 			continue;
 		wl_input_method_context_send_surrounding_text(input_method->context->resource,
@@ -218,9 +218,9 @@ text_input_reset(struct wl_client *client,
 		 struct wl_resource *resource)
 {
 	struct text_input *text_input = wl_resource_get_user_data(resource);
-	struct input_method *input_method, *next;
+	struct input_method *input_method;
 
-	wl_list_for_each_safe(input_method, next, &text_input->input_methods, link) {
+	wl_list_for_each(input_method, &text_input->input_methods, link) {
 		if (!input_method->context)
 			continue;
 		wl_input_method_context_send_reset(input_method->context->resource);
@@ -256,9 +256,9 @@ text_input_set_content_type(struct wl_client *client,
 			    uint32_t purpose)
 {
 	struct text_input *text_input = wl_resource_get_user_data(resource);
-	struct input_method *input_method, *next;
+	struct input_method *input_method;
 
-	wl_list_for_each_safe(input_method, next, &text_input->input_methods, link) {
+	wl_list_for_each(input_method, &text_input->input_methods, link) {
 		if (!input_method->context)
 			continue;
 		wl_input_method_context_send_content_type(input_method->context->resource, hint, purpose);
@@ -272,9 +272,9 @@ text_input_invoke_action(struct wl_client *client,
 			 uint32_t index)
 {
 	struct text_input *text_input = wl_resource_get_user_data(resource);
-	struct input_method *input_method, *next;
+	struct input_method *input_method;
 
-	wl_list_for_each_safe(input_method, next, &text_input->input_methods, link) {
+	wl_list_for_each(input_method, &text_input->input_methods, link) {
 		if (!input_method->context)
 			continue;
 		wl_input_method_context_send_invoke_action(input_method->context->resource, button, index);
@@ -287,9 +287,9 @@ text_input_commit_state(struct wl_client *client,
 			uint32_t serial)
 {
 	struct text_input *text_input = wl_resource_get_user_data(resource);
-	struct input_method *input_method, *next;
+	struct input_method *input_method;
 
-	wl_list_for_each_safe(input_method, next, &text_input->input_methods, link) {
+	wl_list_for_each(input_method, &text_input->input_methods, link) {
 		if (!input_method->context)
 			continue;
 		wl_input_method_context_send_commit_state(input_method->context->resource, serial);
@@ -302,9 +302,9 @@ text_input_set_preferred_language(struct wl_client *client,
 				  const char *language)
 {
 	struct text_input *text_input = wl_resource_get_user_data(resource);
-	struct input_method *input_method, *next;
+	struct input_method *input_method;
 
-	wl_list_for_each_safe(input_method, next, &text_input->input_methods, link) {
+	wl_list_for_each(input_method, &text_input->input_methods, link) {
 		if (!input_method->context)
 			continue;
 		wl_input_method_context_send_preferred_language(input_method->context->resource,
