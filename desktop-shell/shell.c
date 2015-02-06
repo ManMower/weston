@@ -4419,15 +4419,11 @@ resume_desktop(struct desktop_shell *shell)
 	terminate_screensaver(shell);
 
 	wl_list_remove(&shell->lock_layer.link);
-	if (shell->showing_input_panels) {
-		wl_list_insert(&shell->compositor->cursor_layer.link,
-			       &shell->input_panel_layer.link);
-		wl_list_insert(&shell->input_panel_layer.link,
-			       &shell->fullscreen_layer.link);
-	} else {
-		wl_list_insert(&shell->compositor->cursor_layer.link,
-			       &shell->fullscreen_layer.link);
-	}
+
+	wl_list_insert(&shell->compositor->cursor_layer.link,
+		       &shell->input_panel_layer.link);
+	wl_list_insert(&shell->input_panel_layer.link,
+		       &shell->fullscreen_layer.link);
 	wl_list_insert(&shell->fullscreen_layer.link,
 		       &shell->panel_layer.link);
 	wl_list_insert(&shell->panel_layer.link,
@@ -5088,8 +5084,7 @@ lock(struct desktop_shell *shell)
 
 	wl_list_remove(&shell->panel_layer.link);
 	wl_list_remove(&shell->fullscreen_layer.link);
-	if (shell->showing_input_panels)
-		wl_list_remove(&shell->input_panel_layer.link);
+	wl_list_remove(&shell->input_panel_layer.link);
 	wl_list_remove(&ws->layer.link);
 	wl_list_insert(&shell->compositor->cursor_layer.link,
 		       &shell->lock_layer.link);
@@ -6497,8 +6492,6 @@ shell_destroy(struct wl_listener *listener, void *data)
 
 	wl_list_remove(&shell->idle_listener.link);
 	wl_list_remove(&shell->wake_listener.link);
-
-	input_panel_destroy(shell);
 
 	wl_list_for_each_safe(shell_output, tmp, &shell->output_list, link) {
 		wl_list_remove(&shell_output->destroy_listener.link);

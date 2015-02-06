@@ -48,16 +48,12 @@ struct text_input {
 
 	pixman_box32_t cursor_rectangle;
 
-	bool input_panel_visible;
-
 	struct text_input_manager *manager;
 };
 
 struct text_input_manager {
 	struct wl_global *text_input_manager_global;
 	struct wl_listener destroy_listener;
-
-	struct text_input *current_panel;
 
 	struct weston_compositor *ec;
 };
@@ -66,6 +62,10 @@ struct input_method {
 	struct wl_resource *input_method_binding;
 	struct wl_global *input_method_global;
 	struct wl_listener destroy_listener;
+
+	struct wl_signal show_input_panel_signal;
+	struct wl_signal hide_input_panel_signal;
+	struct wl_signal update_input_panel_signal;
 
 	struct weston_seat *seat;
 	struct text_input *input;
@@ -79,6 +79,8 @@ struct input_method {
 	struct input_method_context *context;
 
 	struct text_backend *text_backend;
+
+	bool input_panel_visible;
 };
 
 struct input_method_context {
@@ -120,7 +122,6 @@ static void
 deactivate_input_method(struct input_method *input_method)
 {
 	struct text_input *text_input = input_method->input;
-	struct weston_compositor *ec = text_input->ec;
 
 	if (input_method->context && input_method->input_method_binding) {
 		input_method_context_end_keyboard_grab(input_method->context);
@@ -132,12 +133,8 @@ deactivate_input_method(struct input_method *input_method)
 	input_method->input = NULL;
 	input_method->context = NULL;
 
-	if (wl_list_empty(&text_input->input_methods) &&
-	    text_input->input_panel_visible) {
-		wl_signal_emit(&ec->hide_input_panel_signal, ec);
-		text_input->input_panel_visible = false;
-		text_input->manager->current_panel = NULL;
-	}
+	wl_signal_emit(&input_method->hide_input_panel_signal, NULL);
+
 	wl_text_input_send_leave(text_input->resource);
 }
 
@@ -182,8 +179,6 @@ text_input_activate(struct wl_client *client,
 	struct text_input *text_input = wl_resource_get_user_data(resource);
 	struct weston_seat *weston_seat = wl_resource_get_user_data(seat);
 	struct input_method *input_method = weston_seat->input_method;
-	struct weston_compositor *ec = text_input->ec;
-	struct text_input *current;
 
 	if (input_method->input == text_input)
 		return;
@@ -199,18 +194,9 @@ text_input_activate(struct wl_client *client,
 
 	input_method_context_create(text_input, input_method);
 
-	current = text_input->manager->current_panel;
-
-	if (current && current != text_input) {
-		current->input_panel_visible = false;
-		wl_signal_emit(&ec->hide_input_panel_signal, ec);
-		text_input->manager->current_panel = NULL;
-	}
-
-	if (text_input->input_panel_visible) {
-		wl_signal_emit(&ec->show_input_panel_signal, text_input->surface);
-		wl_signal_emit(&ec->update_input_panel_signal, &text_input->cursor_rectangle);
-		text_input->manager->current_panel = text_input;
+	if (!weston_seat->keyboard_device_count) {
+		wl_signal_emit(&input_method->show_input_panel_signal, NULL);
+		wl_signal_emit(&input_method->update_input_panel_signal, &text_input->cursor_rectangle);
 	}
 
 	wl_text_input_send_enter(text_input->resource, text_input->surface->resource);
@@ -250,14 +236,17 @@ text_input_set_cursor_rectangle(struct wl_client *client,
 				int32_t height)
 {
 	struct text_input *text_input = wl_resource_get_user_data(resource);
-	struct weston_compositor *ec = text_input->ec;
+	struct input_method *input_method;
 
 	text_input->cursor_rectangle.x1 = x;
 	text_input->cursor_rectangle.y1 = y;
 	text_input->cursor_rectangle.x2 = x + width;
 	text_input->cursor_rectangle.y2 = y + height;
 
-	wl_signal_emit(&ec->update_input_panel_signal, &text_input->cursor_rectangle);
+
+	wl_list_for_each(input_method, &text_input->input_methods, link)
+		wl_signal_emit(&input_method->update_input_panel_signal,
+			       &text_input->cursor_rectangle);
 }
 
 static void
@@ -919,6 +908,10 @@ handle_seat_created(struct wl_listener *listener,
 	input_method->context = NULL;
 	input_method->text_backend = text_backend;
 
+	wl_signal_init(&input_method->show_input_panel_signal);
+	wl_signal_init(&input_method->hide_input_panel_signal);
+	wl_signal_init(&input_method->update_input_panel_signal);
+
 	input_method->input_method_global =
 		wl_global_create(ec->wl_display, &wl_input_method_interface, 1,
 				 input_method, bind_input_method);
@@ -971,6 +964,17 @@ input_method_get_text_input_surface(struct input_method *method)
 		return NULL;
 
 	return method->input->surface;
+}
+
+WL_EXPORT void
+text_backend_setup_input_panel_signals(struct input_method *method,
+				       struct wl_listener *show,
+				       struct wl_listener *hide,
+				       struct wl_listener *update)
+{
+        wl_signal_add(&method->show_input_panel_signal, show);
+        wl_signal_add(&method->hide_input_panel_signal, hide);
+        wl_signal_add(&method->update_input_panel_signal, update);
 }
 
 WL_EXPORT int

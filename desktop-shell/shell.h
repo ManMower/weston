@@ -121,9 +121,6 @@ struct desktop_shell {
 	struct wl_listener idle_listener;
 	struct wl_listener wake_listener;
 	struct wl_listener destroy_listener;
-	struct wl_listener show_input_panel_listener;
-	struct wl_listener hide_input_panel_listener;
-	struct wl_listener update_input_panel_listener;
 
 	struct weston_layer fullscreen_layer;
 	struct weston_layer panel_layer;
@@ -144,13 +141,7 @@ struct desktop_shell {
 	} child;
 
 	bool locked;
-	bool showing_input_panels;
 	bool prepare_event_sent;
-
-	struct {
-		struct weston_surface *surface;
-		pixman_box32_t cursor_rectangle;
-	} text_input;
 
 	struct weston_surface *lock_surface;
 	struct wl_listener lock_surface_listener;
@@ -239,8 +230,6 @@ exposay_binding(struct weston_seat *seat,
 		void *data);
 int
 input_panel_setup(struct desktop_shell *shell);
-void
-input_panel_destroy(struct desktop_shell *shell);
 
 typedef void (*shell_for_each_layer_func_t)(struct desktop_shell *,
 					    struct weston_layer *, void *);

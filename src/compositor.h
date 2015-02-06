@@ -603,10 +603,6 @@ struct weston_compositor {
 	struct wl_signal idle_signal;
 	struct wl_signal wake_signal;
 
-	struct wl_signal show_input_panel_signal;
-	struct wl_signal hide_input_panel_signal;
-	struct wl_signal update_input_panel_signal;
-
 	struct wl_signal seat_created_signal;
 	struct wl_signal output_created_signal;
 	struct wl_signal output_destroyed_signal;
@@ -1500,6 +1496,12 @@ weston_transform_to_string(uint32_t output_transform);
 
 struct weston_surface *
 input_method_get_text_input_surface(struct input_method *input_method);
+
+void
+text_backend_setup_input_panel_signals(struct input_method *method,
+				       struct wl_listener *show,
+				       struct wl_listener *hide,
+				       struct wl_listener *update);
 
 #ifdef  __cplusplus
 }
