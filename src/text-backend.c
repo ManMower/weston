@@ -34,7 +34,6 @@
 #include "input-method-server-protocol.h"
 
 struct text_input_manager;
-struct input_method;
 struct input_method_context;
 struct text_backend;
 
