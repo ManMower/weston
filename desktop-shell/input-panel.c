@@ -225,7 +225,8 @@ input_panel_handle_surface_destroy(struct wl_listener *listener, void *data)
 
 static struct input_panel_surface *
 create_input_panel_surface(struct desktop_shell *shell,
-			   struct weston_surface *surface)
+			   struct weston_surface *surface,
+			   struct input_method *method)
 {
 	struct input_panel_surface *input_panel_surface;
 
@@ -301,10 +302,13 @@ static void
 input_panel_get_input_panel_surface(struct wl_client *client,
 				    struct wl_resource *resource,
 				    uint32_t id,
+				    struct wl_resource *method_resource,
 				    struct wl_resource *surface_resource)
 {
 	struct weston_surface *surface =
 		wl_resource_get_user_data(surface_resource);
+	struct input_method *method =
+		wl_resource_get_user_data(method_resource);
 	struct desktop_shell *shell = wl_resource_get_user_data(resource);
 	struct input_panel_surface *ipsurf;
 
@@ -315,7 +319,7 @@ input_panel_get_input_panel_surface(struct wl_client *client,
 		return;
 	}
 
-	ipsurf = create_input_panel_surface(shell, surface);
+	ipsurf = create_input_panel_surface(shell, surface, method);
 	if (!ipsurf) {
 		wl_resource_post_error(surface_resource,
 				       WL_DISPLAY_ERROR_INVALID_OBJECT,
@@ -391,7 +395,7 @@ input_panel_setup(struct desktop_shell *shell)
 	wl_list_init(&shell->input_panel.surfaces);
 
 	if (wl_global_create(shell->compositor->wl_display,
-			     &wl_input_panel_interface, 1,
+			     &wl_input_panel_interface, 2,
 			     shell, bind_input_panel) == NULL)
 		return -1;
 

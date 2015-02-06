@@ -239,13 +239,14 @@
     </event>
   </interface>
 
-  <interface name="wl_input_panel" version="1">
+  <interface name="wl_input_panel" version="2">
     <description summary="interface for implementing keyboards">
       Only one client can bind this interface at a time.
     </description>
 
     <request name="get_input_panel_surface">
       <arg name="id" type="new_id" interface="wl_input_panel_surface"/>
+      <arg name="method" type="object" interface="wl_input_method"/>
       <arg name="surface" type="object" interface="wl_surface"/>
     </request>
   </interface>

@@ -932,6 +932,7 @@ static void keyboard_initialize(struct virtual_keyboard *keyboard,
 
 	keyboard->input_panel_surface =
 		wl_input_panel_get_input_panel_surface(input_panel,
+				keyboard->input_method,
 				window_get_wl_surface(keyboard->window));
 
 	output = display_get_output(keyboard->display);
