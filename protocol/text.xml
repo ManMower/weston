@@ -26,7 +26,7 @@
     THIS SOFTWARE.
   </copyright>
 
-  <interface name="wl_text_input" version="1">
+  <interface name="wl_text_input" version="2">
     <description summary="text input">
       An object used for text input. Adds support for text input and input 
       methods to applications. A text-input object is created from a
@@ -67,16 +67,6 @@
         for activation.
       </description>
       <arg name="seat" type="object" interface="wl_seat"/>
-    </request>
-    <request name="show_input_panel">
-      <description summary="show input panels">
-        Requests input panels (virtual keyboard) to show.
-      </description>
-    </request>
-    <request name="hide_input_panel">
-      <description summary="hide input panels">
-        Requests input panels (virtual keyboard) to hide.
-      </description>
     </request>
     <request name="reset">
       <description summary="reset">

@@ -308,37 +308,6 @@ text_input_commit_state(struct wl_client *client,
 }
 
 static void
-text_input_show_input_panel(struct wl_client *client,
-			    struct wl_resource *resource)
-{
-	struct text_input *text_input = wl_resource_get_user_data(resource);
-	struct weston_compositor *ec = text_input->ec;
-
-	text_input->input_panel_visible = true;
-
-	if (!wl_list_empty(&text_input->input_methods)) {
-		wl_signal_emit(&ec->show_input_panel_signal, text_input->surface);
-		wl_signal_emit(&ec->update_input_panel_signal, &text_input->cursor_rectangle);
-	}
-}
-
-static void
-text_input_hide_input_panel(struct wl_client *client,
-			    struct wl_resource *resource)
-{
-	struct text_input *text_input = wl_resource_get_user_data(resource);
-	struct weston_compositor *ec = text_input->ec;
-
-	text_input->input_panel_visible = false;
-
-	if (!wl_list_empty(&text_input->input_methods) &&
-	    text_input == text_input->manager->current_panel) {
-		text_input->manager->current_panel = NULL;
-		wl_signal_emit(&ec->hide_input_panel_signal, ec);
-	}
-}
-
-static void
 text_input_set_preferred_language(struct wl_client *client,
 				  struct wl_resource *resource,
 				  const char *language)
@@ -357,8 +326,6 @@ text_input_set_preferred_language(struct wl_client *client,
 static const struct wl_text_input_interface text_input_implementation = {
 	text_input_activate,
 	text_input_deactivate,
-	text_input_show_input_panel,
-	text_input_hide_input_panel,
 	text_input_reset,
 	text_input_set_surrounding_text,
 	text_input_set_content_type,
