@@ -949,6 +949,18 @@ text_entry_delete_selected_text(struct text_entry *entry)
 	entry->anchor = entry->cursor;
 }
 
+static int
+text_offset_left(struct rectangle *allocation)
+{
+	return 10;
+}
+
+static int
+text_offset_top(struct rectangle *allocation)
+{
+	return allocation->height / 2;
+}
+
 static void
 text_entry_get_cursor_rectangle(struct text_entry *entry, struct rectangle *rectangle)
 {
@@ -972,8 +984,10 @@ text_entry_get_cursor_rectangle(struct text_entry *entry, struct rectangle *rect
 				    entry->cursor + entry->preedit.cursor,
 				    &cursor_pos, NULL);
 
-	rectangle->x = allocation.x + (allocation.height / 2) + PANGO_PIXELS(cursor_pos.x);
-	rectangle->y = allocation.y + 10 + PANGO_PIXELS(cursor_pos.y);
+	rectangle->x = text_offset_left(&allocation) +
+		       allocation.x + PANGO_PIXELS(cursor_pos.x);
+	rectangle->y = text_offset_top(&allocation) +
+		       allocation.y + PANGO_PIXELS(cursor_pos.y);
 	rectangle->width = PANGO_PIXELS(cursor_pos.width);
 	rectangle->height = PANGO_PIXELS(cursor_pos.height);
 }
@@ -996,18 +1010,6 @@ text_entry_draw_cursor(struct text_entry *entry, cairo_t *cr)
 	cairo_move_to(cr, PANGO_PIXELS(cursor_pos.x), PANGO_PIXELS(cursor_pos.y));
 	cairo_line_to(cr, PANGO_PIXELS(cursor_pos.x), PANGO_PIXELS(cursor_pos.y) + PANGO_PIXELS(cursor_pos.height));
 	cairo_stroke(cr);
-}
-
-static int
-text_offset_left(struct rectangle *allocation)
-{
-	return 10;
-}
-
-static int
-text_offset_top(struct rectangle *allocation)
-{
-	return allocation->height / 2;
 }
 
 static void
