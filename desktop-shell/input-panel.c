@@ -36,6 +36,8 @@ struct input_panel_surface {
 	struct wl_resource *resource;
 	struct wl_signal destroy_signal;
 
+	struct input_method *input_method;
+
 	struct desktop_shell *shell;
 
 	struct wl_list link;
@@ -58,6 +60,22 @@ input_panel_slide_done(struct weston_view_animation *animation, void *data)
 }
 
 static void
+size_input_panel_surface(struct input_panel_surface *ipsurf,
+			 float *x,
+			 float *y)
+{
+	if (ipsurf->panel) {
+		*x = ipsurf->shell->text_input.cursor_rectangle.x2;
+		*y = ipsurf->shell->text_input.cursor_rectangle.y2;
+	} else {
+		*x = ipsurf->output->x +
+		     (ipsurf->output->width - ipsurf->surface->width) / 2;
+		*y = ipsurf->output->y +
+		     ipsurf->output->height - ipsurf->surface->height;
+	}
+}
+
+static void
 show_input_panel_surface(struct input_panel_surface *ipsurf)
 {
 	struct desktop_shell *shell = ipsurf->shell;
@@ -70,13 +88,21 @@ show_input_panel_surface(struct input_panel_surface *ipsurf)
 			continue;
 		focus = weston_surface_get_main_surface(seat->keyboard->focus);
 		ipsurf->output = focus->output;
-		x = ipsurf->output->x + (ipsurf->output->width - ipsurf->surface->width) / 2;
-		y = ipsurf->output->y + ipsurf->output->height - ipsurf->surface->height;
+		size_input_panel_surface(ipsurf, &x, &y);
 		weston_view_set_position(ipsurf->view, x, y);
 	}
 
 	weston_layer_entry_insert(&shell->input_panel_layer.view_list,
 	                          &ipsurf->view->layer_link);
+	if (ipsurf->panel) {
+		struct weston_view *view = NULL;
+		struct weston_surface *surface;
+		surface = input_method_get_text_input_surface(ipsurf->input_method);
+		if (surface)
+			view = get_default_view(surface);
+		if (view)
+			weston_view_set_transform_parent(ipsurf->view, view);
+	}
 	weston_view_geometry_dirty(ipsurf->view);
 	weston_view_update_transform(ipsurf->view);
 	weston_surface_damage(ipsurf->surface);
@@ -161,23 +187,12 @@ input_panel_configure(struct weston_surface *surface, int32_t sx, int32_t sy)
 {
 	struct input_panel_surface *ip_surface = surface->configure_private;
 	struct desktop_shell *shell = ip_surface->shell;
-	struct weston_view *view;
 	float x, y;
 
 	if (surface->width == 0)
 		return;
 
-	if (ip_surface->panel) {
-		view = get_default_view(shell->text_input.surface);
-		if (view == NULL)
-			return;
-		x = view->geometry.x + shell->text_input.cursor_rectangle.x2;
-		y = view->geometry.y + shell->text_input.cursor_rectangle.y2;
-	} else {
-		x = ip_surface->output->x + (ip_surface->output->width - surface->width) / 2;
-		y = ip_surface->output->y + ip_surface->output->height - surface->height;
-	}
-
+	size_input_panel_surface(ip_surface, &x, &y);
 	weston_view_set_position(ip_surface->view, x, y);
 
 	if (!weston_surface_is_mapped(surface) && shell->showing_input_panels)
@@ -238,6 +253,7 @@ create_input_panel_surface(struct desktop_shell *shell,
 	surface->configure_private = input_panel_surface;
 	weston_surface_set_label_func(surface, input_panel_get_label);
 
+	input_panel_surface->input_method = method;
 	input_panel_surface->shell = shell;
 
 	input_panel_surface->surface = surface;

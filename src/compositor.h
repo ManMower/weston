@@ -1498,6 +1498,9 @@ weston_parse_transform(const char *transform, uint32_t *out);
 const char *
 weston_transform_to_string(uint32_t output_transform);
 
+struct weston_surface *
+input_method_get_text_input_surface(struct input_method *input_method);
+
 #ifdef  __cplusplus
 }
 #endif

@@ -964,6 +964,14 @@ text_backend_notifier_destroy(struct wl_listener *listener, void *data)
 	free(text_backend);
 }
 
+WL_EXPORT struct weston_surface *
+input_method_get_text_input_surface(struct input_method *method)
+{
+	if (!method->input)
+		return NULL;
+
+	return method->input->surface;
+}
 
 WL_EXPORT int
 text_backend_init(struct weston_compositor *ec)
