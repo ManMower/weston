@@ -131,6 +131,7 @@ fbdev_output_repaint_pixman(struct weston_output *base, pixman_region32_t *damag
 {
 	struct fbdev_output *output = to_fbdev_output(base);
 	struct weston_compositor *ec = output->base.compositor;
+	pixman_region32_t transformed_region;
 	pixman_box32_t *rects;
 	int nrects, i;
 
@@ -139,30 +140,29 @@ fbdev_output_repaint_pixman(struct weston_output *base, pixman_region32_t *damag
 	ec->renderer->repaint_output(base, damage);
 
 	/* Transform and composite onto the frame buffer. */
-	rects = pixman_region32_rectangles(damage, &nrects);
+	pixman_region32_init(&transformed_region);
+	weston_matrix_transform_region(&transformed_region, &base->matrix, damage);
+	rects = pixman_region32_rectangles(&transformed_region, &nrects);
 
 	for (i = 0; i < nrects; i++) {
-		pixman_box32_t transformed_rect;
 		int width, height;
 
-		transformed_rect = weston_transformed_rect(base->width,
-							   base->height,
-							   base->transform,
-							   1, rects[i]);
-		width = transformed_rect.x2 - transformed_rect.x1;
-		height = transformed_rect.y2 - transformed_rect.y1;
+		width = rects[i].x2 - rects[i].x1;
+		height = rects[i].y2 - rects[i].y1;
 		pixman_image_composite32(PIXMAN_OP_SRC,
 			output->shadow_surface, /* src */
 			NULL /* mask */,
 			output->hw_surface, /* dest */
-			transformed_rect.x1, /* src_x */
-			transformed_rect.y1, /* src_y */
+			rects[i].x1, /* src_x */
+			rects[i].y1, /* src_y */
 			0, 0, /* mask_x, mask_y */
-			transformed_rect.x1, /* dest_x */
-			transformed_rect.y1, /* dest_y */
+			rects[i].x1, /* dest_x */
+			rects[i].y1, /* dest_y */
 			width, /* width */
 			height /* height */);
 	}
+
+	pixman_region32_fini(&transformed_region);
 
 	/* Update the damage region. */
 	pixman_region32_subtract(&ec->primary_plane.damage,
