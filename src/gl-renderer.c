@@ -1897,6 +1897,18 @@ log_egl_config_info(EGLDisplay egldpy, EGLConfig eglconfig)
 		weston_log_continue(" unknown\n");
 }
 
+static bool
+fallback_format(EGLint *format)
+{
+	char *fourcc = (char *)format;
+
+	if (fourcc[0] != 'X')
+		return false;
+
+	fourcc[0] = 'A';
+	return true;
+}
+
 static int
 egl_choose_config(struct gl_renderer *gr, const EGLint *attribs,
 		  const EGLint *visual_id,
@@ -1904,6 +1916,7 @@ egl_choose_config(struct gl_renderer *gr, const EGLint *attribs,
 {
 	EGLint count = 0;
 	EGLint matched = 0;
+	EGLint fallback_id;
 	EGLConfig *configs;
 	int i;
 
@@ -1930,6 +1943,28 @@ egl_choose_config(struct gl_renderer *gr, const EGLint *attribs,
 			if (id != 0 && id != *visual_id)
 				continue;
 		}
+
+		*config_out = configs[i];
+
+		free(configs);
+		return 0;
+	}
+
+	fallback_id = *visual_id;
+	if (!fallback_format(&fallback_id))
+		goto out;
+
+	weston_log("Attempting fallback from XRGB to ARGB visual\n");
+
+	for (i = 0; i < matched; ++i) {
+		EGLint id;
+
+		if (!eglGetConfigAttrib(gr->egl_display,
+				configs[i], EGL_NATIVE_VISUAL_ID,
+				&id))
+			continue;
+		if (id != 0 && id != fallback_id)
+			continue;
 
 		*config_out = configs[i];
 
