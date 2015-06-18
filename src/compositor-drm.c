@@ -229,6 +229,13 @@ static const char default_seat[] = "seat0";
 static void
 drm_output_set_cursor(struct drm_output *output);
 
+static void
+idle_flip(void *data);
+
+static void
+page_flip_handler(int fd, unsigned int frame,
+		  unsigned int sec, unsigned int usec, void *data);
+
 static int
 drm_sprite_crtc_supported(struct drm_output *output, uint32_t supported)
 {
@@ -632,12 +639,15 @@ drm_output_repaint(struct weston_output *output_base,
 
 	if (drmModePageFlip(compositor->drm.fd, output->crtc_id,
 			    output->next->fb_id,
-			    DRM_MODE_PAGE_FLIP_EVENT, output) < 0) {
+			    0/*DRM_MODE_PAGE_FLIP_EVENT*/, output) < 0) {
 		weston_log("queueing pageflip failed: %m\n");
 		goto err_pageflip;
 	}
 
 	output->page_flip_pending = 1;
+
+	/* Since we can't get a page flip event, we'll queue up the handler as an idle callback :( */
+	wl_event_loop_add_idle(wl_display_get_event_loop(compositor->base.wl_display), idle_flip, output);
 
 	drm_output_set_cursor(output);
 
@@ -718,12 +728,13 @@ drm_output_start_repaint_loop(struct weston_output *output_base)
 	fb_id = output->current->fb_id;
 
 	if (drmModePageFlip(compositor->drm.fd, output->crtc_id, fb_id,
-			    DRM_MODE_PAGE_FLIP_EVENT, output) < 0) {
+			    0 /*DRM_MODE_PAGE_FLIP_EVENT*/, output) < 0) {
 		weston_log("queueing pageflip failed: %m\n");
 		goto finish_frame;
 	}
-
-	return;
+	/*Since we won't get a page flip event, let's fall through to
+	  finish_frame */
+	/*return;*/
 
 finish_frame:
 	/* if we cannot page-flip, immediately finish frame */
@@ -805,6 +816,19 @@ page_flip_handler(int fd, unsigned int frame,
 		if (output->recorder)
 			weston_output_schedule_repaint(&output->base);
 	}
+}
+
+static void
+idle_flip(void *data)
+{
+	struct drm_output *output = data;
+	struct drm_compositor *compositor =
+		(struct drm_compositor *)output->base.compositor;
+	struct timespec ts;
+	static int frame = 0;
+
+	weston_compositor_read_presentation_clock(&compositor->base, &ts);
+	page_flip_handler(-1, frame++, ts.tv_sec, ts.tv_nsec / 1000, data);
 }
 
 static uint32_t
