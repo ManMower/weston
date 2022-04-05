@@ -40,7 +40,6 @@
 
 #include "shell.h"
 #include "compositor/weston.h"
-#include "weston-rdprail-shell-server-protocol.h"
 #include <libweston/config-parser.h>
 #include "shared/helpers.h"
 #include "shared/timespec-util.h"
@@ -657,17 +656,12 @@ static void
 shell_configuration(struct desktop_shell *shell)
 {
 	struct weston_config_section *section;
-	char *s, *client;
+	char *s;
 	bool allow_zap;
 	bool is_localmove_supported;
 
 	section = weston_config_get_section(wet_get_config(shell->compositor),
 					    "shell", NULL, NULL);
-
-	client = wet_get_libexec_path("weston-rdprail-shell");
-	weston_config_section_get_string(section, "client", &s, client);
-	free(client);
-	shell->client = s;
 
 	/* default to not allow zap */
 	weston_config_section_get_bool(section,
@@ -1505,23 +1499,6 @@ handle_keyboard_focus(struct wl_listener *listener, void *data)
 		if (shsurf)
 			shell_surface_gain_keyboard_focus(shsurf);
 	}
-
-	if (new_focused_surface == shell->focus_proxy_surface) {
-		/* When new focused window is focus proxy window, client side window is
-		   taking focus and server side window is losing focus, thus let keyboard
-		   to clear out currently pressed keys. This is because once server side
-		   window is gone from client desktop, the client no longer sends keyboard
-		   inputs including key release, thus if any keys are currently at pressed
-		   state, it doesn't recieve release for those keys from RDP client. */
-		while (keyboard->keys.size) {
-			struct timespec time;
-			uint32_t *k = keyboard->keys.data;
-			weston_compositor_get_time(&time);
-			notify_key(seat->seat, &time, *k,
-				WL_KEYBOARD_KEY_STATE_RELEASED, STATE_UPDATE_AUTOMATIC);
-			/* shell_rdp_debug_verbose(shell, "%s: released key:0x%x\n", __func__, *k); */
-		}
-	}
 }
 
 /* The surface will be inserted into the list immediately after the link
@@ -2134,10 +2111,6 @@ desktop_surface_removed(struct weston_desktop_surface *desktop_surface,
 
 	if (!shsurf)
 		return;
-
-	/* if this is focus proxy, reset to NULL */
-	if (shell->focus_proxy_surface == surface)
-		shell->focus_proxy_surface = NULL;
 
 	wl_list_for_each_safe(shsurf_child, tmp, &shsurf->children_list, children_link) {
 		wl_list_remove(&shsurf_child->children_link);
@@ -3418,8 +3391,7 @@ activate(struct desktop_shell *shell, struct weston_view *view,
 
 	if (shell->rdprail_api->notify_window_zorder_change)
 		shell->rdprail_api->notify_window_zorder_change(
-			shell->compositor,
-			shell->focus_proxy_surface == es ? NULL : es);
+			shell->compositor, es);
 }
 
 /* no-op func for checking black surface */
@@ -3500,11 +3472,9 @@ shell_backend_request_window_activate(void *shell_context, struct weston_seat *s
 	struct shell_surface *shsurf;
 
 	if (!surface) {
-		/* Here, focus is moving to a window in client side, thus none of Linux app has focus,
-		   so move the focus to dummy marker window (focus_proxy), thus the rest of Linux app
-		   window can correctly show as 'not focused' state (such as title bar) while client
-		   (Windows) application has focus. */
-		surface = shell->focus_proxy_surface;
+		/* Deactivate all windows */
+		weston_seat_set_keyboard_focus(seat, NULL);
+		return;
 	}
 	if (!surface) {
 		/* if no proxy window provided, force set marker window to focus at backend */
@@ -3679,164 +3649,6 @@ weston_view_set_initial_position(struct weston_view *view,
 				__func__, view, x, y); 
 
 	weston_view_set_position(view, x, y);
-}
-
-static bool
-check_desktop_shell_crash_too_early(struct desktop_shell *shell)
-{
-	struct timespec now;
-
-	if (clock_gettime(CLOCK_MONOTONIC, &now) < 0)
-		return false;
-
-	/*
-	 * If the shell helper client dies before the session has been
-	 * up for roughly 30 seconds, better just make Weston shut down,
-	 * because the user likely has no way to interact with the desktop
-	 * anyway.
-	 */
-	if (now.tv_sec - shell->startup_time.tv_sec < 30) {
-		shell_rdp_debug(shell, "Error: %s apparently cannot run at all.\n",
-			   shell->client);
-		shell_rdp_debug(shell, STAMP_SPACE "Quitting...");
-		weston_compositor_exit_with_code(shell->compositor,
-						 EXIT_FAILURE);
-
-		return true;
-	}
-
-	return false;
-}
-
-static void launch_desktop_shell_process(void *data);
-
-static void
-respawn_desktop_shell_process(struct desktop_shell *shell)
-{
-	struct timespec time;
-
-	/* if desktop-shell dies more than 5 times in 30 seconds, give up */
-	weston_compositor_get_time(&time);
-	if (timespec_sub_to_msec(&time, &shell->child.deathstamp) > 30000) {
-		shell->child.deathstamp = time;
-		shell->child.deathcount = 0;
-	}
-
-	shell->child.deathcount++;
-	if (shell->child.deathcount > 5) {
-		shell_rdp_debug(shell, "%s disconnected, giving up.\n", shell->client);
-		return;
-	}
-
-	shell_rdp_debug(shell, "%s disconnected, respawning...\n", shell->client);
-	launch_desktop_shell_process(shell);
-}
-
-static void
-desktop_shell_client_destroy(struct wl_listener *listener, void *data)
-{
-	struct desktop_shell *shell;
-
-	shell = container_of(listener, struct desktop_shell,
-			     child.client_destroy_listener);
-
-	wl_list_remove(&shell->child.client_destroy_listener.link);
-	shell->child.client = NULL;
-
-	/* client is terminated, so focus_proxy is destroyed too. */
-	shell->focus_proxy_surface = NULL;
-
-	/*
-	 * unbind_desktop_shell() will reset shell->child.desktop_shell
-	 * before the respawned process has a chance to create a new
-	 * desktop_shell object, because we are being called from the
-	 * wl_client destructor which destroys all wl_resources before
-	 * returning.
-	 */
-
-	if (!check_desktop_shell_crash_too_early(shell))
-		respawn_desktop_shell_process(shell);
-}
-
-static void
-launch_desktop_shell_process(void *data)
-{
-	struct desktop_shell *shell = data;
-
-	shell->child.client = weston_client_start(shell->compositor,
-						  shell->client);
-
-	if (!shell->child.client) {
-		shell_rdp_debug(shell, "not able to start %s\n", shell->client);
-		return;
-	}
-
-	shell->child.client_destroy_listener.notify =
-		desktop_shell_client_destroy;
-	wl_client_add_destroy_listener(shell->child.client,
-				       &shell->child.client_destroy_listener);
-}
-
-static void
-desktop_shell_set_focus_proxy(struct wl_client *client,
-			      struct wl_resource *resource,
-			      struct wl_resource *surface_resource)
-{
-	struct desktop_shell *shell = wl_resource_get_user_data(resource);
-	struct weston_surface *surface;
-	struct shell_surface *shsurf;
-
-	surface = wl_resource_get_user_data(surface_resource);
-	if (!surface) {
-		shell_rdp_debug(shell, "%s: surface is NULL\n", __func__);
-		return;
-	}
-
-	shsurf = get_shell_surface(surface);
-	if (!shsurf) {
-		shell_rdp_debug(shell, "%s: surface:%p is not shell surface\n", __func__, surface);
-		return;
-	}
-
-	shell->focus_proxy_surface = surface;
-
-	/* Update the surface’s layer. This brings it to the top of the stacking
-	 * order as appropriate. */
-	shell_surface_update_layer(shsurf);
-}
-
-static const struct weston_rdprail_shell_interface rdprail_shell_implementation = {
-	desktop_shell_set_focus_proxy,
-};
-
-static void
-unbind_desktop_shell(struct wl_resource *resource)
-{
-	struct desktop_shell *shell = wl_resource_get_user_data(resource);
-
-	shell->child.desktop_shell = NULL;
-}
-
-static void
-bind_desktop_shell(struct wl_client *client,
-		   void *data, uint32_t version, uint32_t id)
-{
-	struct desktop_shell *shell = data;
-	struct wl_resource *resource;
-
-	resource = wl_resource_create(client, &weston_rdprail_shell_interface,
-				      1, id);
-
-	if (client == shell->child.client) {
-		wl_resource_set_implementation(resource,
-					       &rdprail_shell_implementation,
-					       shell, unbind_desktop_shell);
-		shell->child.desktop_shell = resource;
-		return;
-	}
-
-	wl_resource_post_error(resource, WL_DISPLAY_ERROR_INVALID_OBJECT,
-			       "permission to bind rdprail_shell denied");
 }
 
 static void
@@ -4377,7 +4189,6 @@ wet_shell_init(struct weston_compositor *ec,
 	struct desktop_shell *shell;
 	struct workspace **pws;
 	unsigned int i;
-	struct wl_event_loop *loop;
 	char *debug_level;
 	char *icon_path;
 
@@ -4454,15 +4265,7 @@ wet_shell_init(struct weston_compositor *ec,
 	if (!shell->desktop)
 		return -1;
 
-	if (wl_global_create(ec->wl_display,
-			     &weston_rdprail_shell_interface, 1,
-			     shell, bind_desktop_shell) == NULL)
-		return -1;
-
 	setup_output_destroy_handler(ec, shell);
-
-	loop = wl_display_get_event_loop(ec->wl_display);
-	wl_event_loop_add_idle(loop, launch_desktop_shell_process, shell);
 
 	wl_list_for_each(seat, &ec->seat_list, link)
 		handle_seat_created(NULL, seat);

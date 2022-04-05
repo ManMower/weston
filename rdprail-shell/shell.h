@@ -31,8 +31,6 @@
 #include <libweston/xwayland-api.h>
 #include <libweston/weston-log.h>
 
-#include "weston-rdprail-shell-server-protocol.h"
-
 #define RDPRAIL_SHELL_DEBUG_LEVEL_NONE    0
 #define RDPRAIL_SHELL_DEBUG_LEVEL_ERR     1
 #define RDPRAIL_SHELL_DEBUG_LEVEL_WARN    2

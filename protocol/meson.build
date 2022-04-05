@@ -29,7 +29,6 @@ generated_protocols = [
 	[ 'viewporter', 'stable' ],
 	[ 'weston-debug', 'internal' ],
 	[ 'weston-desktop-shell', 'internal' ],
-	[ 'weston-rdprail-shell', 'internal' ],
 	[ 'weston-screenshooter', 'internal' ],
 	[ 'weston-content-protection', 'internal' ],
 	[ 'weston-test', 'internal' ],

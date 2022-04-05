@@ -17,8 +17,6 @@ if get_option('shell-rdprail')
 		'input-panel.c',
 		'app-list.c',
 		'img-load.c',
-		weston_rdprail_shell_server_protocol_h,
-		weston_rdprail_shell_protocol_c,
 		input_method_unstable_v1_server_protocol_h,
 		input_method_unstable_v1_protocol_c,
 	]
