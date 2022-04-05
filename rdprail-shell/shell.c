@@ -480,8 +480,7 @@ static void
 shell_grab_start(struct shell_grab *grab,
 		 const struct weston_pointer_grab_interface *interface,
 		 struct shell_surface *shsurf,
-		 struct weston_pointer *pointer,
-		 enum weston_rdprail_shell_cursor cursor)
+		 struct weston_pointer *pointer)
 {
 	struct desktop_shell *shell = shsurf->shell;
 
@@ -1168,7 +1167,7 @@ surface_move(struct shell_surface *shsurf, struct weston_pointer *pointer,
 	move->client_initiated = client_initiated;
 
 	shell_grab_start(&move->base, &move_grab_interface, shsurf,
-			 pointer, WESTON_RDPRAIL_SHELL_CURSOR_MOVE);
+			 pointer);
 
 	return 0;
 }
@@ -1353,7 +1352,7 @@ surface_resize(struct shell_surface *shsurf,
 	shsurf->resize_edges = edges;
 	weston_desktop_surface_set_resizing(shsurf->desktop_surface, true);
 	shell_grab_start(&resize->base, &resize_grab_interface, shsurf,
-			 pointer, edges);
+			 pointer);
 
 	return 0;
 }
@@ -2771,8 +2770,7 @@ set_busy_cursor(struct shell_surface *shsurf, struct weston_pointer *pointer)
 	if (!grab)
 		return;
 
-	shell_grab_start(grab, &busy_cursor_grab_interface, shsurf, pointer,
-			 WESTON_RDPRAIL_SHELL_CURSOR_BUSY);
+	shell_grab_start(grab, &busy_cursor_grab_interface, shsurf, pointer);
 	/* Mark the shsurf as ungrabbed so that button binding is able
 	 * to move it. */
 	shsurf->grabbed = 0;
@@ -3279,7 +3277,7 @@ surface_rotate(struct shell_surface *shsurf, struct weston_pointer *pointer)
 	}
 
 	shell_grab_start(&rotate->base, &rotate_grab_interface, shsurf,
-			 pointer, WESTON_RDPRAIL_SHELL_CURSOR_ARROW);
+			 pointer);
 }
 
 /*
