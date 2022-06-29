@@ -803,6 +803,8 @@ rdp_destroy(struct weston_compositor *ec)
 	free(b->server_cert);
 	free(b->server_key);
 	free(b->rdp_key);
+	if (b->monitor_private)
+		free_private(&b->monitor_private);
 	free(b);
 }
 
@@ -1274,9 +1276,6 @@ xf_peer_activate(freerdp_peer* client)
 					settings->DesktopPhysicalHeight);
 			}
 		}
-		pixman_region32_clear(&peerCtx->regionClientHeads);
-		pixman_region32_init_rect(&peerCtx->regionClientHeads,
-			0, 0, settings->DesktopWidth, settings->DesktopHeight);
 
 		pixman_region32_clear(&b->head_default->regionClient);
 		pixman_region32_init_rect(&b->head_default->regionClient,
@@ -1286,10 +1285,6 @@ xf_peer_activate(freerdp_peer* client)
 
 		rdp_debug(b, "%s: OutputWidth:%d, OutputHeight:%d, OutputScaleFactor:%d\n", __FUNCTION__,
 			weston_output->width, weston_output->height, weston_output->scale);
-
-		pixman_region32_clear(&peerCtx->regionWestonHeads);
-		pixman_region32_init_rect(&peerCtx->regionWestonHeads,
-			0, 0, weston_output->width, weston_output->height);
 
 		pixman_region32_clear(&b->head_default->regionWeston);
 		pixman_region32_init_rect(&b->head_default->regionWeston,
@@ -1386,32 +1381,35 @@ xf_peer_post_connect(freerdp_peer *client)
 static bool
 rdp_translate_and_notify_mouse_position(RdpPeerContext *peerContext, UINT16 x, UINT16 y)
 {
+	struct rdp_backend *b = peerContext->rdpBackend;
 	struct timespec time;
 	int32_t x1, y1;
-	int sx, sy;
-
+	int sx = x, sy = y;
 	if (!peerContext->item.seat)
 		return false;
 
 	/* (TS_POINTERX_EVENT):The xy-coordinate of the pointer relative to the top-left
 	                       corner of the server's desktop combined all monitors */
 	/* first, convert to the coordinate based on primary monitor's upper-left as (0,0) */
-	get_client_extents(peerContext, &x1, &y1, NULL, NULL);
-	sx = x + x1;
-	sy = y + y1;
-
+	if (b->monitor_private) {
+		get_client_extents(b->monitor_private, &x1, &y1, NULL, NULL);
+		sx = x + x1;
+		sy = y + y1;
+	}
 	/* translate client's x/y to the coordinate in weston space. */
 	/* TODO: to_weston_coordinate() is translate based on where pointer is,
 	         not based-on where/which window underneath. Thus, this doesn't
 	         work when window lays across more than 2 monitors and each monitor has
 	         different scaling. In such case, hit test to that window area on
 	         non primary-resident monitor (surface->output) dosn't work. */
-	if (to_weston_coordinate(peerContext, &sx, &sy, NULL, NULL)) {
-		weston_compositor_get_time(&time);
-		notify_motion_absolute(peerContext->item.seat, &time, sx, sy);
-		return false;
+	if (b->monitor_private) {
+		if (!to_weston_coordinate(peerContext, &sx, &sy, NULL, NULL))
+			return false;
 	}
-	return false;
+
+	weston_compositor_get_time(&time);
+	notify_motion_absolute(peerContext->item.seat, &time, sx, sy);
+	return true;
 }
 
 static void
@@ -1880,8 +1878,7 @@ xf_peer_adjust_monitor_layout(freerdp_peer *client)
 		monitors[0].attributes.deviceScaleFactor = settings->DeviceScaleFactor;
 		monitors[0].orig_screen = 0;
 	}
-	success = handle_adjust_monitor_layout(client, monitor_count, monitors);
-
+	success = handle_adjust_monitor_layout(b->monitor_private, client, monitor_count, monitors);
 	free(monitors);
 	return success;
 }
@@ -2377,6 +2374,8 @@ rdp_backend_create(struct weston_compositor *compositor,
 		rdp_debug_error(b, "Failed to register output API.\n");
 		goto err_output;
 	}
+
+	b->monitor_private = init_multi_monitor(b->compositor);
 
 	return b;
 

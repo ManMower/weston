@@ -41,6 +41,11 @@
 
 #include "shared/xalloc.h"
 
+struct monitor_private {
+	pixman_region32_t regionClientHeads;
+	pixman_region32_t regionWestonHeads;
+};
+
 static BOOL
 is_line_intersected(int l1, int l2, int r1, int r2)
 {
@@ -90,15 +95,15 @@ disp_get_output_scale_from_monitor(RdpPeerContext *peerCtx, struct rdp_monitor_m
 }
 
 static void
-disp_start_monitor_layout_change(freerdp_peer *client, struct rdp_monitor_mode *monitorMode, UINT32 monitorCount, int *doneIndex)
+disp_start_monitor_layout_change(struct monitor_private *mp, freerdp_peer *client, struct rdp_monitor_mode *monitorMode, UINT32 monitorCount, int *doneIndex)
 {
 	RdpPeerContext *peerCtx = (RdpPeerContext *)client->context;
 	struct rdp_backend *b = peerCtx->rdpBackend;
 
 	assert_compositor_thread(b);
 
-	pixman_region32_clear(&peerCtx->regionClientHeads);
-	pixman_region32_clear(&peerCtx->regionWestonHeads);
+	pixman_region32_clear(&mp->regionClientHeads);
+	pixman_region32_clear(&mp->regionWestonHeads);
 	/* move all heads to pending list */
 	b->head_pending_list = b->head_list;
 	b->head_pending_list.next->prev = &b->head_pending_list; 
@@ -120,10 +125,10 @@ disp_start_monitor_layout_change(freerdp_peer *client, struct rdp_monitor_mode *
 				wl_list_remove(&current->link);
 				wl_list_insert(&b->head_move_pending_list, &current->link);
 				/* accumulate monitor layout */
-				pixman_region32_union_rect(&peerCtx->regionClientHeads, &peerCtx->regionClientHeads,
+				pixman_region32_union_rect(&mp->regionClientHeads, &mp->regionClientHeads,
 					current->monitorMode.monitorDef.x, current->monitorMode.monitorDef.y,
 					current->monitorMode.monitorDef.width, current->monitorMode.monitorDef.height);
-				pixman_region32_union_rect(&peerCtx->regionWestonHeads, &peerCtx->regionWestonHeads,
+				pixman_region32_union_rect(&mp->regionWestonHeads, &mp->regionWestonHeads,
 					current->monitorMode.rectWeston.x, current->monitorMode.rectWeston.y,
 					current->monitorMode.rectWeston.width, current->monitorMode.rectWeston.height);
 				*doneIndex |= (1 << i);
@@ -134,7 +139,7 @@ disp_start_monitor_layout_change(freerdp_peer *client, struct rdp_monitor_mode *
 }
 
 static void
-disp_end_monitor_layout_change(freerdp_peer *client)
+disp_end_monitor_layout_change(struct monitor_private *mp, freerdp_peer *client)
 {
 	RdpPeerContext *peerCtx = (RdpPeerContext *)client->context;
 	struct rdp_backend *b = peerCtx->rdpBackend;
@@ -191,15 +196,15 @@ disp_end_monitor_layout_change(freerdp_peer *client)
 		}
 	}
 	rdp_debug(b, "client virtual desktop is (%d,%d) - (%d,%d)\n", 
-		peerCtx->regionClientHeads.extents.x1, peerCtx->regionClientHeads.extents.y1,
-		peerCtx->regionClientHeads.extents.x2, peerCtx->regionClientHeads.extents.y2);
+		mp->regionClientHeads.extents.x1, mp->regionClientHeads.extents.y1,
+		mp->regionClientHeads.extents.x2, mp->regionClientHeads.extents.y2);
 	rdp_debug(b, "weston virtual desktop is (%d,%d) - (%d,%d)\n", 
-		peerCtx->regionWestonHeads.extents.x1, peerCtx->regionWestonHeads.extents.y1,
-		peerCtx->regionWestonHeads.extents.x2, peerCtx->regionWestonHeads.extents.y2);
+		mp->regionWestonHeads.extents.x1, mp->regionWestonHeads.extents.y1,
+		mp->regionWestonHeads.extents.x2, mp->regionWestonHeads.extents.y2);
 }
 
 static UINT
-disp_set_monitor_layout_change(freerdp_peer *client, struct rdp_monitor_mode *monitorMode)
+disp_set_monitor_layout_change(struct monitor_private *mp, freerdp_peer *client, struct rdp_monitor_mode *monitorMode)
 {
 	RdpPeerContext *peerCtx = (RdpPeerContext *)client->context;
 	struct rdp_backend *b = peerCtx->rdpBackend;
@@ -326,10 +331,10 @@ disp_set_monitor_layout_change(freerdp_peer *client, struct rdp_monitor_mode *mo
 	}
 
 	/* accumulate monitor layout */
-	pixman_region32_union_rect(&peerCtx->regionClientHeads, &peerCtx->regionClientHeads,
+	pixman_region32_union_rect(&mp->regionClientHeads, &mp->regionClientHeads,
 		monitorMode->monitorDef.x, monitorMode->monitorDef.y,
 		monitorMode->monitorDef.width, monitorMode->monitorDef.height);
-	pixman_region32_union_rect(&peerCtx->regionWestonHeads, &peerCtx->regionWestonHeads,
+	pixman_region32_union_rect(&mp->regionWestonHeads, &mp->regionWestonHeads,
 		monitorMode->rectWeston.x, monitorMode->rectWeston.y,
 		monitorMode->rectWeston.width, monitorMode->rectWeston.height);
 
@@ -518,9 +523,21 @@ disp_monitor_validate_and_compute_layout(RdpPeerContext *peerCtx, struct rdp_mon
 	return TRUE;
 }
 
-bool
-handle_adjust_monitor_layout(freerdp_peer *client, int monitor_count, rdpMonitor *monitors)
+void *
+init_multi_monitor(struct weston_compositor *comp)
 {
+	struct monitor_private *mp;
+
+	mp = xzalloc(sizeof *mp);
+	pixman_region32_init(&mp->regionWestonHeads);
+	pixman_region32_init(&mp->regionClientHeads);
+	return mp;
+}
+
+bool
+handle_adjust_monitor_layout(void *priv, freerdp_peer *client, int monitor_count, rdpMonitor *monitors)
+{
+	struct monitor_private *mp = priv;
 	RdpPeerContext *peerCtx = (RdpPeerContext *)client->context;
 	bool success = true;
 	struct rdp_monitor_mode *monitorMode = NULL;
@@ -541,19 +558,18 @@ handle_adjust_monitor_layout(freerdp_peer *client, int monitor_count, rdpMonitor
 	}
 
 	int doneIndex = 0;
-	disp_start_monitor_layout_change(client, monitorMode, monitor_count, &doneIndex);
+	disp_start_monitor_layout_change(mp, client, monitorMode, monitor_count, &doneIndex);
 	for (int i = 0; i < monitor_count; i++) {
 		if ((doneIndex & (1 << i)) == 0)
-			if (disp_set_monitor_layout_change(client, &monitorMode[i]) != 0) {
+			if (disp_set_monitor_layout_change(mp, client, &monitorMode[i]) != 0) {
 				success = true;
 				goto exit;
 			}
 	}
-	disp_end_monitor_layout_change(client);
+	disp_end_monitor_layout_change(mp, client);
 
 exit:
 	free(monitorMode);
-
 	return success;
 }
 
@@ -571,6 +587,7 @@ struct weston_output *
 to_weston_coordinate(RdpPeerContext *peerContext, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height)
 {
 	struct rdp_backend *b = peerContext->rdpBackend;
+	struct monitor_private *mp = b->monitor_private;
 	int sx = *x, sy = *y;
 	struct rdp_head *head_iter;
 
@@ -642,14 +659,27 @@ to_client_coordinate(RdpPeerContext *peerContext, struct weston_output *output, 
 }
 
 void
-get_client_extents(RdpPeerContext *ctx, int32_t *x1, int32_t *y1, int32_t *x2, int32_t *y2)
+get_client_extents(void *priv, int32_t *x1, int32_t *y1, int32_t *x2, int32_t *y2)
 {
+	struct monitor_private *mp = priv;
+
 	if (x1)
-		*x1 = ctx->regionClientHeads.extents.x1;
+		*x1 = mp->regionClientHeads.extents.x1;
 	if (y1)
-		*y1 = ctx->regionClientHeads.extents.y1;
+		*y1 = mp->regionClientHeads.extents.y1;
 	if (x2)
-		*x2 = ctx->regionClientHeads.extents.x2;
+		*x2 = mp->regionClientHeads.extents.x2;
 	if (y2)
-		*y2 = ctx->regionClientHeads.extents.y2;
+		*y2 = mp->regionClientHeads.extents.y2;
+}
+
+void
+free_private(void **priv)
+{
+	struct monitor_private *mp = *priv;
+
+	pixman_region32_fini(&mp->regionClientHeads);
+	pixman_region32_fini(&mp->regionWestonHeads);
+	free(mp);
+	*priv = NULL;
 }

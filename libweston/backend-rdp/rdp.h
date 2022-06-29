@@ -139,6 +139,7 @@ struct rdp_backend {
 	uint32_t debug_desktop_scaling_factor; /* must be between 100 to 500 */
 
 	int rdp_monitor_refresh_rate;
+	void *monitor_private;
 
 	struct weston_surface *proxy_surface;
 
@@ -272,10 +273,6 @@ struct rdp_peer_context {
 	struct wl_listener wake_listener;
 
 	bool is_window_zorder_dirty;
-
-	// Multiple monitor support (monitor topology)
-	pixman_region32_t regionClientHeads;
-	pixman_region32_t regionWestonHeads;
 
 	// Audio support
 	RdpsndServerContext* rdpsnd_server_context;
@@ -428,8 +425,14 @@ void rdp_rail_start_window_move(struct weston_surface* surface, int pointerGrabX
 void rdp_rail_end_window_move(struct weston_surface* surface);
 
 // rdpdisp.c
+void *
+init_multi_monitor(struct weston_compositor *compositor);
+
 bool
-handle_adjust_monitor_layout(freerdp_peer *client, int monitor_count, rdpMonitor *monitors);
+handle_adjust_monitor_layout(void *priv, freerdp_peer *client, int monitor_count, rdpMonitor *monitors);
+
+void
+free_private(void **priv);
 
 struct weston_output *
 to_weston_coordinate(RdpPeerContext *peerContext, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height);
@@ -438,7 +441,7 @@ void
 to_client_coordinate(RdpPeerContext *peerContext, struct weston_output *output, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height);
 
 void
-get_client_extents(RdpPeerContext *ctx, int32_t *x1, int32_t *y1, int32_t *x2, int32_t *y2);
+get_client_extents(void *priv, int32_t *x1, int32_t *y1, int32_t *x2, int32_t *y2);
 
 // rdpaudio.c
 int rdp_audio_init(RdpPeerContext *peerCtx);

@@ -2739,7 +2739,7 @@ disp_monitor_layout_change_callback(bool freeOnly, void *dataIn)
 		goto out;
 
 	/* Skip reset graphics on failure */
-	if (!handle_adjust_monitor_layout(client, data->count, data->monitors))
+	if (!handle_adjust_monitor_layout(b->monitor_private, client, data->count, data->monitors))
 		goto out;
 
 	reset_monitor_def = xmalloc(sizeof(MONITOR_DEF) * data->count);
@@ -2753,7 +2753,7 @@ disp_monitor_layout_change_callback(bool freeOnly, void *dataIn)
         }
 
 	/* tell client the server updated the monitor layout */
-	get_client_extents(peerCtx, &x1, &y1, &x2, &y2);
+	get_client_extents(b->monitor_private, &x1, &y1, &x2, &y2);
 	reset_graphics.width = x2 - x1;
 	reset_graphics.height = y2 - x1;
 	reset_graphics.monitorCount = data->count;
@@ -3447,9 +3447,6 @@ rdp_rail_peer_context_free(freerdp_peer* client, RdpPeerContext* context)
 #endif // HAVE_FREERDP_GFXREDIR_H
 	rdp_id_manager_free(&context->surfaceId);
 	rdp_id_manager_free(&context->windowId);
-
-	pixman_region32_fini(&context->regionClientHeads);
-	pixman_region32_fini(&context->regionWestonHeads);
 }
 
 BOOL
@@ -3527,9 +3524,6 @@ rdp_rail_peer_init(freerdp_peer *client, RdpPeerContext *peerCtx)
 
 	peerCtx->currentFrameId = 0;
 	peerCtx->acknowledgedFrameId = 0;
-
-	pixman_region32_init(&peerCtx->regionClientHeads);
-	pixman_region32_init(&peerCtx->regionWestonHeads);
 
 	return TRUE;
 
