@@ -1383,20 +1383,22 @@ xf_peer_post_connect(freerdp_peer *client)
 	return TRUE;
 }
 
-static BOOL
+static bool
 rdp_translate_and_notify_mouse_position(RdpPeerContext *peerContext, UINT16 x, UINT16 y)
 {
 	struct timespec time;
+	int32_t x1, y1;
 	int sx, sy;
 
 	if (!peerContext->item.seat)
-		return FALSE;
+		return false;
 
 	/* (TS_POINTERX_EVENT):The xy-coordinate of the pointer relative to the top-left
 	                       corner of the server's desktop combined all monitors */
 	/* first, convert to the coordinate based on primary monitor's upper-left as (0,0) */
-	sx = x + peerContext->regionClientHeads.extents.x1;
-	sy = y + peerContext->regionClientHeads.extents.y1;
+	get_client_extents(peerContext, &x1, &y1, NULL, NULL);
+	sx = x + x1;
+	sy = y + y1;
 
 	/* translate client's x/y to the coordinate in weston space. */
 	/* TODO: to_weston_coordinate() is translate based on where pointer is,
@@ -1407,9 +1409,9 @@ rdp_translate_and_notify_mouse_position(RdpPeerContext *peerContext, UINT16 x, U
 	if (to_weston_coordinate(peerContext, &sx, &sy, NULL, NULL)) {
 		weston_compositor_get_time(&time);
 		notify_motion_absolute(peerContext->item.seat, &time, sx, sy);
-		return TRUE;
+		return false;
 	}
-	return FALSE;
+	return false;
 }
 
 static void

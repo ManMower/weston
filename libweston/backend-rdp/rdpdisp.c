@@ -640,3 +640,16 @@ to_client_coordinate(RdpPeerContext *peerContext, struct weston_output *output, 
 		return; // must be only 1 head per output.
 	}
 }
+
+void
+get_client_extents(RdpPeerContext *ctx, int32_t *x1, int32_t *y1, int32_t *x2, int32_t *y2)
+{
+	if (x1)
+		*x1 = ctx->regionClientHeads.extents.x1;
+	if (y1)
+		*y1 = ctx->regionClientHeads.extents.y1;
+	if (x2)
+		*x2 = ctx->regionClientHeads.extents.x2;
+	if (y2)
+		*y2 = ctx->regionClientHeads.extents.y2;
+}

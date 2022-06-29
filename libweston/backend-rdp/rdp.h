@@ -437,6 +437,9 @@ to_weston_coordinate(RdpPeerContext *peerContext, int32_t *x, int32_t *y, uint32
 void
 to_client_coordinate(RdpPeerContext *peerContext, struct weston_output *output, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height);
 
+void
+get_client_extents(RdpPeerContext *ctx, int32_t *x1, int32_t *y1, int32_t *x2, int32_t *y2);
+
 // rdpaudio.c
 int rdp_audio_init(RdpPeerContext *peerCtx);
 void rdp_audio_destroy(RdpPeerContext *peerCtx);

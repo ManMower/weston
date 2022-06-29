@@ -2731,6 +2731,7 @@ disp_monitor_layout_change_callback(bool freeOnly, void *dataIn)
 	struct rdp_backend *b = peerCtx->rdpBackend;
 	RDPGFX_RESET_GRAPHICS_PDU reset_graphics = {};
 	MONITOR_DEF *reset_monitor_def;
+	int x1, y1, x2, y2;
 
 	assert_compositor_thread(b);
 
@@ -2752,8 +2753,9 @@ disp_monitor_layout_change_callback(bool freeOnly, void *dataIn)
         }
 
 	/* tell client the server updated the monitor layout */
-	reset_graphics.width = peerCtx->regionClientHeads.extents.x2 - peerCtx->regionClientHeads.extents.x1;
-	reset_graphics.height = peerCtx->regionClientHeads.extents.y2 - peerCtx->regionClientHeads.extents.x1;
+	get_client_extents(peerCtx, &x1, &y1, &x2, &y2);
+	reset_graphics.width = x2 - x1;
+	reset_graphics.height = y2 - x1;
 	reset_graphics.monitorCount = data->count;
 	reset_graphics.monitorDefArray = reset_monitor_def;
 	peerCtx->rail_grfx_server_context->ResetGraphics(peerCtx->rail_grfx_server_context, &reset_graphics);
