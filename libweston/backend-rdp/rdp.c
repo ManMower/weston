@@ -1825,6 +1825,8 @@ xf_peer_adjust_monitor_layout(freerdp_peer *client)
 	BOOL success;
 	unsigned int i;
 
+	assert_compositor_thread(b);
+
 	rdp_debug(b, "%s:\n", __func__);
 	rdp_debug(b, "  DesktopWidth:%d, DesktopHeight:%d\n", settings->DesktopWidth, settings->DesktopHeight);
 	rdp_debug(b, "  UseMultimon:%d\n", settings->UseMultimon);

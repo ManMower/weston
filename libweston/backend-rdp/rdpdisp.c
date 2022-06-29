@@ -100,8 +100,6 @@ disp_start_monitor_layout_change(struct monitor_private *mp, freerdp_peer *clien
 	RdpPeerContext *peerCtx = (RdpPeerContext *)client->context;
 	struct rdp_backend *b = peerCtx->rdpBackend;
 
-	assert_compositor_thread(b);
-
 	pixman_region32_clear(&mp->regionClientHeads);
 	pixman_region32_clear(&mp->regionWestonHeads);
 	/* move all heads to pending list */
@@ -144,8 +142,6 @@ disp_end_monitor_layout_change(struct monitor_private *mp, freerdp_peer *client)
 	RdpPeerContext *peerCtx = (RdpPeerContext *)client->context;
 	struct rdp_backend *b = peerCtx->rdpBackend;
 	struct rdp_head *current, *next;
-
-	assert_compositor_thread(b);
 
 	/* move output to final location */
 	wl_list_for_each_safe(current, next, &b->head_move_pending_list, link) {
@@ -213,8 +209,6 @@ disp_set_monitor_layout_change(struct monitor_private *mp, freerdp_peer *client,
 	struct weston_head *head = NULL;
 	struct rdp_head *current;
 	BOOL updateMode = FALSE;
-
-	assert_compositor_thread(b);
 
 	if (monitorMode->monitorDef.is_primary) {
 		assert(b->head_default);
