@@ -48,6 +48,10 @@ struct monitor_private {
 	struct weston_log_scope *debug;
 	pixman_region32_t regionClientHeads;
 	pixman_region32_t regionWestonHeads;
+	bool enable_hi_dpi_support;
+	int debug_desktop_scaling_factor;
+	bool enable_fractional_hi_dpi_support;
+	bool enable_fractional_hi_dpi_roundup;
 };
 
 static BOOL
@@ -75,15 +79,14 @@ compare_monitors_y(const void *p1, const void *p2)
 }
 
 static float
-disp_get_client_scale_from_monitor(RdpPeerContext *peerCtx, struct rdp_monitor_mode *monitorMode)
+disp_get_client_scale_from_monitor(struct monitor_private *mp, struct rdp_monitor_mode *monitorMode)
 {
-	struct rdp_backend *b = peerCtx->rdpBackend;
-	if (b->enable_hi_dpi_support) {
-		if (b->debug_desktop_scaling_factor)
-			return (float)b->debug_desktop_scaling_factor / 100.f;
-		else if (b->enable_fractional_hi_dpi_support)
+	if (mp->enable_hi_dpi_support) {
+		if (mp->debug_desktop_scaling_factor)
+			return (float)mp->debug_desktop_scaling_factor / 100.f;
+		else if (mp->enable_fractional_hi_dpi_support)
 			return (float)monitorMode->monitorDef.attributes.desktopScaleFactor / 100.0f;
-		else if (b->enable_fractional_hi_dpi_roundup)
+		else if (mp->enable_fractional_hi_dpi_roundup)
 			return (float)(int)((monitorMode->monitorDef.attributes.desktopScaleFactor + 50) / 100);
 		else
 			return (float)(int)(monitorMode->monitorDef.attributes.desktopScaleFactor / 100);
@@ -93,9 +96,9 @@ disp_get_client_scale_from_monitor(RdpPeerContext *peerCtx, struct rdp_monitor_m
 }
 
 static int
-disp_get_output_scale_from_monitor(RdpPeerContext *peerCtx, struct rdp_monitor_mode *monitorMode)
+disp_get_output_scale_from_monitor(struct monitor_private *mp, struct rdp_monitor_mode *monitorMode)
 {
-	return (int) disp_get_client_scale_from_monitor(peerCtx, monitorMode);
+	return (int)disp_get_client_scale_from_monitor(mp, monitorMode);
 }
 
 static void
@@ -521,8 +524,9 @@ disp_monitor_validate_and_compute_layout(struct monitor_private *mp, struct rdp_
 }
 
 void *
-init_multi_monitor(struct weston_compositor *comp)
+init_multi_monitor(struct weston_compositor *comp, void *output_handler_config)
 {
+	struct rdp_output_handler_config *config = output_handler_config;
 	struct monitor_private *mp;
 
 	mp = xzalloc(sizeof *mp);
@@ -532,6 +536,18 @@ init_multi_monitor(struct weston_compositor *comp)
 						 "rdp-multihead",
 						 "Debug messages from RDP multi-head\n",
 						 NULL, NULL, NULL);
+
+	rdp_disp_debug(mp, "RDP output handler: enable_hi_dpi_support = %d\n", config->enable_hi_dpi_support);
+	mp->enable_hi_dpi_support = config->enable_hi_dpi_support;
+
+	rdp_disp_debug(mp, "RDP output handler: debug_desktop_scaling_factor = %d\n", config->debug_desktop_scaling_factor);
+	mp->debug_desktop_scaling_factor = config->debug_desktop_scaling_factor;
+
+	rdp_disp_debug(mp, "RDP output handler: enable_fractional_hi_dpi_support = %d\n", config->enable_fractional_hi_dpi_support);
+	mp->enable_fractional_hi_dpi_support = config->enable_fractional_hi_dpi_support;
+
+	rdp_disp_debug(mp, "RDP output handler: enable_fractional_hi_dpi_roundup = %d\n", config->enable_fractional_hi_dpi_roundup);
+	mp->enable_fractional_hi_dpi_roundup = config->enable_fractional_hi_dpi_roundup;
 	return mp;
 }
 
@@ -539,7 +555,6 @@ bool
 handle_adjust_monitor_layout(void *priv, freerdp_peer *client, int monitor_count, rdpMonitor *monitors)
 {
 	struct monitor_private *mp = priv;
-	RdpPeerContext *peerCtx = (RdpPeerContext *)client->context;
 	bool success = true;
 	struct rdp_monitor_mode *monitorMode = NULL;
 	int i;
@@ -549,8 +564,8 @@ handle_adjust_monitor_layout(void *priv, freerdp_peer *client, int monitor_count
 	for (i = 0; i < monitor_count; i++) {
 		monitorMode[i].monitorDef = monitors[i];
 		monitorMode[i].monitorDef.orig_screen = 0;
-		monitorMode[i].scale = disp_get_output_scale_from_monitor(peerCtx, &monitorMode[i]);
-		monitorMode[i].clientScale = disp_get_client_scale_from_monitor(peerCtx, &monitorMode[i]);
+		monitorMode[i].scale = disp_get_output_scale_from_monitor(mp, &monitorMode[i]);
+		monitorMode[i].clientScale = disp_get_client_scale_from_monitor(mp, &monitorMode[i]);
 	}
 
 	if (!disp_monitor_validate_and_compute_layout(mp, monitorMode, monitor_count)) {

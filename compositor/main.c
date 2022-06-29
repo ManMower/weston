@@ -53,7 +53,7 @@
 #include "shared/string-helpers.h"
 #include "git-version.h"
 #include <libweston/version.h>
-#include "weston.h"
+#include "shared/xalloc.h"
 
 #include <libweston/backend-drm.h>
 #include <libweston/backend-headless.h>
@@ -2720,6 +2720,7 @@ weston_rdp_backend_config_init(struct weston_rdp_backend_config *config)
 	config->rail_config.enable_distro_name_title = false;
 	config->rail_config.enable_copy_warning_title = false;
 	config->rail_config.enable_display_power_by_screenupdate = false;
+	config->output_handler_config = NULL;
 }
 
 static bool
@@ -2761,6 +2762,7 @@ static int
 load_rdp_backend(struct weston_compositor *c,
 		int *argc, char *argv[], struct weston_config *wc)
 {
+	struct rdp_output_handler_config *output_handler_config;
 	struct weston_rdp_backend_config config  = {{ 0, }};
 	int ret = 0;
 
@@ -2795,11 +2797,12 @@ load_rdp_backend(struct weston_compositor *c,
 	config.rail_config.use_rdpapplist = read_rdp_config_bool("WESTON_RDP_APPLIST", true);
 	config.rail_config.use_shared_memory = read_rdp_config_bool("WESTON_RDP_SHARED_MEMORY", true);
 
+	output_handler_config = xzalloc(sizeof *output_handler_config);
 	/* Configure HI-DPI scaling */
-	config.rail_config.enable_hi_dpi_support = read_rdp_config_bool("WESTON_RDP_HI_DPI_SCALING", true);
-	if (config.rail_config.enable_hi_dpi_support) {
+	output_handler_config->enable_hi_dpi_support = read_rdp_config_bool("WESTON_RDP_HI_DPI_SCALING", true);
+	if (output_handler_config->enable_hi_dpi_support) {
 		/* Disable by default for now. */
-		config.rail_config.enable_fractional_hi_dpi_support =
+		output_handler_config->enable_fractional_hi_dpi_support =
 			read_rdp_config_bool("WESTON_RDP_FRACTIONAL_HI_DPI_SCALING", false);
 	} else {
 		config.rail_config.enable_fractional_hi_dpi_support = false;
@@ -2811,10 +2814,10 @@ load_rdp_backend(struct weston_compositor *c,
 		config.rail_config.enable_fractional_hi_dpi_roundup =
 			read_rdp_config_bool("WESTON_RDP_FRACTIONAL_HI_DPI_SCALING_ROUNDUP", false);
 	}
-	if (config.rail_config.enable_hi_dpi_support) {
-		config.rail_config.debug_desktop_scaling_factor =
+	if (output_handler_config->enable_hi_dpi_support) {
+		output_handler_config->debug_desktop_scaling_factor =
 			read_rdp_config_int("WESTON_RDP_DEBUG_DESKTOP_SCALING_FACTOR", 0);
-		if (config.rail_config.debug_desktop_scaling_factor != 0) {
+		if (output_handler_config->debug_desktop_scaling_factor != 0) {
 			if (config.rail_config.debug_desktop_scaling_factor < 100 ||
 			    config.rail_config.debug_desktop_scaling_factor > 500) {
 				config.rail_config.debug_desktop_scaling_factor = 0;
@@ -2835,6 +2838,8 @@ load_rdp_backend(struct weston_compositor *c,
 	config.rail_config.enable_copy_warning_title = read_rdp_config_bool("WESTON_RDP_COPY_WARNING_TITLE", true);
 
 	wet_set_simple_head_configurator(c, rdp_backend_output_configure);
+
+	config.output_handler_config = output_handler_config;
 
 	ret = weston_compositor_load_backend(c, WESTON_BACKEND_RDP,
 					     &config.base);

@@ -4281,18 +4281,6 @@ rdp_rail_backend_create(struct rdp_backend *b, struct weston_rdp_backend_config 
 	rdp_debug(b, "RDP backend: use_gfxredir = %d\n", b->use_gfxredir);
 #endif // HAVE_FREERDP_GFXREDIR_H
 
-	b->enable_hi_dpi_support = config->rail_config.enable_hi_dpi_support;
-	rdp_debug(b, "RDP backend: enable_hi_dpi_support = %d\n", b->enable_hi_dpi_support);
-
-	b->enable_fractional_hi_dpi_support = config->rail_config.enable_fractional_hi_dpi_support;
-	rdp_debug(b, "RDP backend: enable_fractional_hi_dpi_support = %d\n", b->enable_fractional_hi_dpi_support);
-
-	b->enable_fractional_hi_dpi_roundup = config->rail_config.enable_fractional_hi_dpi_roundup;
-	rdp_debug(b, "RDP backend: enable_fractional_hi_dpi_roundup = %d\n", b->enable_fractional_hi_dpi_roundup);
-
-	b->debug_desktop_scaling_factor = config->rail_config.debug_desktop_scaling_factor;
-	rdp_debug(b, "RDP backend: debug_desktop_scaling_factor = %d\n", b->debug_desktop_scaling_factor);
-
 	b->enable_window_zorder_sync = config->rail_config.enable_window_zorder_sync;
 	rdp_debug(b, "RDP backend: enable_window_zorder_sync = %d\n", b->enable_window_zorder_sync);
 

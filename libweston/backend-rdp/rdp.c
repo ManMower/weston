@@ -2233,6 +2233,7 @@ rdp_backend_create(struct weston_compositor *compositor,
 	b->redirect_audio_playback = config->redirect_audio_playback;
 	b->redirect_audio_capture = config->redirect_audio_capture;
 	b->rdp_monitor_refresh_rate = config->rdp_monitor_refresh_rate * 1000;
+	b->output_handler_config = config->output_handler_config;
 
 	wl_list_init(&b->output_list);
 	wl_list_init(&b->head_list);
@@ -2377,7 +2378,8 @@ rdp_backend_create(struct weston_compositor *compositor,
 		goto err_output;
 	}
 
-	b->monitor_private = init_multi_monitor(b->compositor);
+	b->monitor_private = init_multi_monitor(b->compositor,
+						b->output_handler_config);
 
 	return b;
 
@@ -2432,6 +2434,7 @@ config_init_to_defaults(struct weston_rdp_backend_config *config)
 	config->rail_config.enable_distro_name_title = false;
 	config->rail_config.enable_copy_warning_title = false;
 	config->rail_config.enable_display_power_by_screenupdate = false;
+	config->output_handler_config = NULL;
 }
 
 WL_EXPORT int

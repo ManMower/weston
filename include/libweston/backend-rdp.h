@@ -273,6 +273,15 @@ struct weston_rdp_backend_config {
 		bool enable_copy_warning_title;
 		bool enable_display_power_by_screenupdate;
 	} rail_config;
+	void *output_handler_config;
+};
+
+/* temporary private structure, will eventually be moved to front-end code. */
+struct rdp_output_handler_config {
+	bool enable_hi_dpi_support;
+	int debug_desktop_scaling_factor;
+	bool enable_fractional_hi_dpi_support;
+	bool enable_fractional_hi_dpi_roundup;
 };
 
 #ifdef  __cplusplus

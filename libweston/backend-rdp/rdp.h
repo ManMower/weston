@@ -133,13 +133,10 @@ struct rdp_backend {
 
 	bool enable_display_power_by_screenupdate;
 
-	bool enable_hi_dpi_support;
-	bool enable_fractional_hi_dpi_support;
-	bool enable_fractional_hi_dpi_roundup;
-	uint32_t debug_desktop_scaling_factor; /* must be between 100 to 500 */
-
 	int rdp_monitor_refresh_rate;
 	void *monitor_private;
+
+	void *output_handler_config;
 
 	struct weston_surface *proxy_surface;
 
@@ -426,7 +423,7 @@ void rdp_rail_end_window_move(struct weston_surface* surface);
 
 // rdpdisp.c
 void *
-init_multi_monitor(struct weston_compositor *compositor);
+init_multi_monitor(struct weston_compositor *compositor, void *config);
 
 bool
 handle_adjust_monitor_layout(void *priv, freerdp_peer *client, int monitor_count, rdpMonitor *monitors);
