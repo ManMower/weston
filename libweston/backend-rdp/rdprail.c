@@ -528,7 +528,6 @@ rail_client_ClientSysparam_callback(bool freeOnly, void *arg)
 	pixman_rectangle32_t workareaRect;
 	pixman_rectangle32_t workareaRectClient;
 	struct weston_output *base_output;
-	struct weston_head *base_head_iter;
 
 	assert_compositor_thread(b);
 
@@ -623,10 +622,6 @@ rail_client_ClientSysparam_callback(bool freeOnly, void *arg)
 					base_output->x, base_output->y,
 					base_output->x + base_output->width, base_output->y + base_output->height);
 				b->rdprail_shell_api->set_desktop_workarea(base_output, b->rdprail_shell_context, &workareaRect);
-				wl_list_for_each(base_head_iter, &base_output->head_list, output_link) {
-					to_rdp_head(base_head_iter)->workarea = workareaRect;
-					to_rdp_head(base_head_iter)->workareaClient = workareaRectClient;
-				}
 			} else {
 				rdp_debug_error(b, "Client: ClientSysparam: workArea isn't belonging to an output\n");
 			}
@@ -3597,12 +3592,6 @@ print_rdp_head(FILE *fp, const struct rdp_head *current)
 	fprintf(fp,"    regionWeston: x1:%d, y1:%d, x2:%d, y2:%d\n",
 		current->regionWeston.extents.x1, current->regionWeston.extents.y1,
 		current->regionWeston.extents.x2, current->regionWeston.extents.y2);
-	fprintf(fp,"    workarea: x:%d, y:%d, width:%d, height:%d\n",
-		current->workarea.x, current->workarea.y,
-		current->workarea.width, current->workarea.height);
-	fprintf(fp,"    RDP client workarea: x:%d, y:%d, width:%d, height%d\n",
-		current->workareaClient.x, current->workareaClient.y,
-		current->workareaClient.width, current->workareaClient.height);
 	fprintf(fp,"    connected:%d, non_desktop:%d\n",
 		current->base.connected, current->base.non_desktop);
 	fprintf(fp,"    assigned output: %s\n",
