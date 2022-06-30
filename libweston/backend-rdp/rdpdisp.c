@@ -52,6 +52,9 @@ struct monitor_private {
 	int debug_desktop_scaling_factor;
 	bool enable_fractional_hi_dpi_support;
 	bool enable_fractional_hi_dpi_roundup;
+
+	struct wl_list head_pending_list; // used during monitor layout change.
+	struct wl_list head_move_pending_list; // used during monitor layout change.
 };
 
 static BOOL
@@ -110,16 +113,16 @@ disp_start_monitor_layout_change(struct monitor_private *mp, freerdp_peer *clien
 	pixman_region32_clear(&mp->regionClientHeads);
 	pixman_region32_clear(&mp->regionWestonHeads);
 	/* move all heads to pending list */
-	b->head_pending_list = b->head_list;
-	b->head_pending_list.next->prev = &b->head_pending_list; 
-	b->head_pending_list.prev->next = &b->head_pending_list;
+	mp->head_pending_list = b->head_list;
+	mp->head_pending_list.next->prev = &mp->head_pending_list;
+	mp->head_pending_list.prev->next = &mp->head_pending_list;
 	/* init move pending list */
-	wl_list_init(&b->head_move_pending_list);
+	wl_list_init(&mp->head_move_pending_list);
 	/* clear head list */
 	wl_list_init(&b->head_list);
 	for (UINT32 i = 0; i < monitorCount; i++, monitorMode++) {
 		struct rdp_head *current;
-		wl_list_for_each(current, &b->head_pending_list, link) {
+		wl_list_for_each(current, &mp->head_pending_list, link) {
 			if (memcmp(&current->monitorMode, monitorMode, sizeof(*monitorMode)) == 0) {
 				rdp_disp_debug(mp, "Head mode exact match:%s, x:%d, y:%d, width:%d, height:%d, is_primary: %d\n",
 					       current->base.name,
@@ -128,7 +131,7 @@ disp_start_monitor_layout_change(struct monitor_private *mp, freerdp_peer *clien
 					       current->monitorMode.monitorDef.is_primary);
 				/* move from pending list to move pending list */
 				wl_list_remove(&current->link);
-				wl_list_insert(&b->head_move_pending_list, &current->link);
+				wl_list_insert(&mp->head_move_pending_list, &current->link);
 				/* accumulate monitor layout */
 				pixman_region32_union_rect(&mp->regionClientHeads, &mp->regionClientHeads,
 					current->monitorMode.monitorDef.x, current->monitorMode.monitorDef.y,
@@ -151,7 +154,7 @@ disp_end_monitor_layout_change(struct monitor_private *mp, freerdp_peer *client)
 	struct rdp_head *current, *next;
 
 	/* move output to final location */
-	wl_list_for_each_safe(current, next, &b->head_move_pending_list, link) {
+	wl_list_for_each_safe(current, next, &mp->head_move_pending_list, link) {
 		/* move from move pending list to current list */
 		wl_list_remove(&current->link);
 		wl_list_insert(&b->head_list, &current->link);
@@ -171,15 +174,15 @@ disp_end_monitor_layout_change(struct monitor_private *mp, freerdp_peer *client)
 			/* position will be set at rdp_output_enable */
 		}
 	}
-	assert(wl_list_empty(&b->head_move_pending_list));
-	wl_list_init(&b->head_move_pending_list);
+	assert(wl_list_empty(&mp->head_move_pending_list));
+	wl_list_init(&mp->head_move_pending_list);
 	/* remove all unsed head from pending list */
-	if (!wl_list_empty(&b->head_pending_list)) {
-		wl_list_for_each_safe(current, next, &b->head_pending_list, link)
+	if (!wl_list_empty(&mp->head_pending_list)) {
+		wl_list_for_each_safe(current, next, &mp->head_pending_list, link)
 			rdp_head_destroy(b->compositor, current);
 		/* make sure nothing left in pending list */
-		assert(wl_list_empty(&b->head_pending_list));
-		wl_list_init(&b->head_pending_list);
+		assert(wl_list_empty(&mp->head_pending_list));
+		wl_list_init(&mp->head_pending_list);
 	}
 	/* make sure head list is not empty */
 	assert(!wl_list_empty(&b->head_list));
@@ -232,7 +235,7 @@ disp_set_monitor_layout_change(struct monitor_private *mp, freerdp_peer *client,
 			updateMode = TRUE;
 	} else {
 		/* search head match configuration from pending list */
-		wl_list_for_each(current, &b->head_pending_list, link) {
+		wl_list_for_each(current, &mp->head_pending_list, link) {
 			if (current->monitorMode.monitorDef.is_primary) {
 				/* primary is only re-used for primary */
 			} else if (current->monitorMode.monitorDef.width == monitorMode->monitorDef.width &&
@@ -253,7 +256,7 @@ disp_set_monitor_layout_change(struct monitor_private *mp, freerdp_peer *client,
 		}
 		if (!head) {
 			/* just pick first one to change mode */
-			wl_list_for_each(current, &b->head_pending_list, link) {
+			wl_list_for_each(current, &mp->head_pending_list, link) {
 				/* primary is only re-used for primary */
 				if (!current->monitorMode.monitorDef.is_primary) {
 					head = &current->base;
@@ -286,7 +289,7 @@ disp_set_monitor_layout_change(struct monitor_private *mp, freerdp_peer *client,
 			monitorMode->rectWeston.width, monitorMode->rectWeston.height);
 		/* move from pending list to move pending list */
 		wl_list_remove(&current->link);
-		wl_list_insert(&b->head_move_pending_list, &to_rdp_head(head)->link);
+		wl_list_insert(&mp->head_move_pending_list, &to_rdp_head(head)->link);
 	} else {
 		/* no head found, create one */
 		if (rdp_head_create(b->compositor, monitorMode->monitorDef.is_primary, monitorMode) == NULL)
