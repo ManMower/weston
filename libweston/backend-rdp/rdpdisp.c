@@ -593,7 +593,7 @@ exit:
 }
 
 static inline void
-to_weston_scale_only(RdpPeerContext *peer, struct weston_output *output, float scale, int *x, int *y)
+to_weston_scale_only(struct weston_output *output, float scale, int *x, int *y)
 {
 	//rdp_matrix_transform_scale(&output->inverse_matrix, x, y);
 	/* TODO: built-in to matrix */
@@ -620,9 +620,9 @@ to_weston_coordinate(RdpPeerContext *peerContext, int32_t *x, int32_t *y, uint32
 			sx -= head_iter->monitorMode.monitorDef.x;
 			sy -= head_iter->monitorMode.monitorDef.y;
 			/* scale x/y to client output space. */
-			to_weston_scale_only(peerContext, output, scale, &sx, &sy);
+			to_weston_scale_only(output, scale, &sx, &sy);
 			if (width && height)
-				to_weston_scale_only(peerContext, output, scale, width, height);
+				to_weston_scale_only(output, scale, width, height);
 			/* translate x/y to offset from this output on weston space. */
 			sx += head_iter->monitorMode.rectWeston.x;
 			sy += head_iter->monitorMode.rectWeston.y;
@@ -638,7 +638,7 @@ to_weston_coordinate(RdpPeerContext *peerContext, int32_t *x, int32_t *y, uint32
 }
 
 static inline void
-to_client_scale_only(RdpPeerContext *peer, struct weston_output *output, float scale, int *x, int *y)
+to_client_scale_only(struct weston_output *output, float scale, int *x, int *y)
 {
 	//rdp_matrix_transform_scale(&output->matrix, x, y);
 	/* TODO: built-in to matrix */
@@ -663,9 +663,9 @@ to_client_coordinate(RdpPeerContext *peerContext, struct weston_output *output, 
 		sx -= head->monitorMode.rectWeston.x;
 		sy -= head->monitorMode.rectWeston.y;
 		/* scale x/y to client output space. */
-		to_client_scale_only(peerContext, output, scale, &sx, &sy);
+		to_client_scale_only(output, scale, &sx, &sy);
 		if (width && height)
-			to_client_scale_only(peerContext, output, scale, width, height);
+			to_client_scale_only(output, scale, width, height);
 		/* translate x/y to offset from this output on client space. */
 		sx += head->monitorMode.monitorDef.x;
 		sy += head->monitorMode.monitorDef.y;
