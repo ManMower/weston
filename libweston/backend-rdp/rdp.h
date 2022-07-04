@@ -120,9 +120,6 @@ struct rdp_backend {
 	freerdp_peer *rdp_peer; // this points a single instance of RAIL RDP peer.
 	pid_t compositor_tid;
 
-	struct weston_binding *debug_binding_M;
-	struct weston_binding *debug_binding_W;
-
 	struct wl_listener create_window_listener;
 
 	bool enable_window_zorder_sync;

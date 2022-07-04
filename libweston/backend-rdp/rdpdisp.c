@@ -31,6 +31,7 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <linux/input.h>
 #include <pthread.h>
 
 #include <stdio.h>
@@ -39,12 +40,14 @@
 
 #include "rdp.h"
 
+#include "libweston-internal.h"
 #include "shared/xalloc.h"
 
 #define rdp_disp_debug(b, ...) \
 	rdp_debug_print(b->debug, false, __VA_ARGS__)
 
 struct monitor_private {
+	struct weston_compositor *compositor;
 	struct weston_log_scope *debug;
 	pixman_region32_t regionClientHeads;
 	pixman_region32_t regionWestonHeads;
@@ -52,6 +55,8 @@ struct monitor_private {
 	int debug_desktop_scaling_factor;
 	bool enable_fractional_hi_dpi_support;
 	bool enable_fractional_hi_dpi_roundup;
+	struct weston_binding *debug_binding_M;
+	struct weston_binding *debug_binding_W;
 
 	struct wl_list head_pending_list; // used during monitor layout change.
 	struct wl_list head_move_pending_list; // used during monitor layout change.
@@ -526,6 +531,266 @@ disp_monitor_validate_and_compute_layout(struct monitor_private *mp, struct rdp_
 	return TRUE;
 }
 
+static void
+print_matrix_type(FILE *fp, unsigned int type)
+{
+	fprintf(fp, "        matrix type: %x: ", type);
+	if (type == 0) {
+		fprintf(fp, "identify ");
+	} else {
+		if (type & WESTON_MATRIX_TRANSFORM_TRANSLATE)
+			fprintf(fp, "translate ");
+		if (type & WESTON_MATRIX_TRANSFORM_SCALE)
+			fprintf(fp, "scale ");
+		if (type & WESTON_MATRIX_TRANSFORM_ROTATE)
+			fprintf(fp, "rotate ");
+		if (type & WESTON_MATRIX_TRANSFORM_OTHER)
+			fprintf(fp, "other ");
+	}
+	fprintf(fp, "\n");
+}
+
+static void
+print_matrix(FILE *fp, const char *name, const struct weston_matrix *matrix)
+{
+	int i;
+	if (name)
+		fprintf(fp,"    %s\n", name);
+	print_matrix_type(fp, matrix->type);
+	for (i = 0; i < 4; i++)
+		fprintf(fp,"        %8.2f, %8.2f, %8.2f, %8.2f\n",
+			matrix->d[4*i+0], matrix->d[4*i+1], matrix->d[4*1+2], matrix->d[4*i+3]);
+}
+
+static void
+print_rdp_head(FILE *fp, const struct rdp_head *current)
+{
+	fprintf(fp,"    rdp_head: %s: index:%d: is_primary:%d\n",
+		current->base.name, current->index,
+		current->monitorMode.monitorDef.is_primary);
+	fprintf(fp,"    x:%d, y:%d, RDP client x:%d, y:%d\n",
+		current->base.output->x, current->base.output->y,
+		current->monitorMode.monitorDef.x, current->monitorMode.monitorDef.y);
+	fprintf(fp,"    width:%d, height:%d, RDP client width:%d, height: %d\n",
+		current->base.output->width, current->base.output->height,
+		current->monitorMode.monitorDef.width, current->monitorMode.monitorDef.height);
+	fprintf(fp,"    physicalWidth:%dmm, physicalHeight:%dmm, orientation:%d\n",
+		current->monitorMode.monitorDef.attributes.physicalWidth,
+		current->monitorMode.monitorDef.attributes.physicalHeight,
+		current->monitorMode.monitorDef.attributes.orientation);
+	fprintf(fp,"    desktopScaleFactor:%d, deviceScaleFactor:%d\n",
+		current->monitorMode.monitorDef.attributes.desktopScaleFactor,
+		current->monitorMode.monitorDef.attributes.deviceScaleFactor);
+	fprintf(fp,"    scale:%d, client scale :%3.2f\n",
+		current->monitorMode.scale, current->monitorMode.clientScale);
+	fprintf(fp,"    regionClient: x1:%d, y1:%d, x2:%d, y2:%d\n",
+		current->regionClient.extents.x1, current->regionClient.extents.y1,
+		current->regionClient.extents.x2, current->regionClient.extents.y2);
+	fprintf(fp,"    regionWeston: x1:%d, y1:%d, x2:%d, y2:%d\n",
+		current->regionWeston.extents.x1, current->regionWeston.extents.y1,
+		current->regionWeston.extents.x2, current->regionWeston.extents.y2);
+	fprintf(fp,"    connected:%d, non_desktop:%d\n",
+		current->base.connected, current->base.non_desktop);
+	fprintf(fp,"    assigned output: %s\n",
+		current->base.output ? current->base.output->name : "(no output)");
+	if (current->base.output) {
+		fprintf(fp,"    output extents box: x1:%d, y1:%d, x2:%d, y2:%d\n",
+			current->base.output->region.extents.x1, current->base.output->region.extents.y1,
+			current->base.output->region.extents.x2, current->base.output->region.extents.y2);
+		fprintf(fp,"    output scale:%d, output native_scale:%d\n",
+			current->base.output->scale, current->base.output->native_scale);
+		print_matrix(fp, "global to output matrix:", &current->base.output->matrix);
+		print_matrix(fp, "output to global matrix:", &current->base.output->inverse_matrix);
+	}
+}
+
+static void
+rdp_rail_dump_monitor_binding(struct weston_keyboard *keyboard,
+			const struct timespec *time, uint32_t key, void *data)
+{
+	struct rdp_backend *b = (struct rdp_backend *)data;
+	if (b) {
+		struct rdp_head *current;
+		int err;
+		char *str;
+		size_t len;
+		FILE *fp = open_memstream(&str, &len);
+		assert(fp);
+		fprintf(fp,"\nrdp debug binding 'M' - dump all monitor.\n");
+		wl_list_for_each(current, &b->head_list, link) {
+			print_rdp_head(fp, current);
+			fprintf(fp,"\n");
+		}
+		err = fclose(fp);
+		assert(err == 0);
+		rdp_debug_error(b, "%s", str);
+		free(str);
+	}
+}
+
+struct rdp_rail_dump_window_context {
+	FILE *fp;
+	RdpPeerContext *peerCtx;
+};
+
+static void
+rdp_rail_dump_window_label(struct weston_surface *surface, char *label, uint32_t label_size)
+{
+	if (surface->get_label) {
+		strcpy(label, "Label: "); // 7 chars
+		surface->get_label(surface, label + 7, label_size - 7);
+	} else if (surface->role_name) {
+		snprintf(label, label_size, "RoleName: %s", surface->role_name);
+	} else {
+		strcpy(label, "(No Label, No Role name)");
+	}
+}
+
+static void
+rdp_rail_dump_window_iter(void *element, void *data)
+{
+	struct weston_surface *surface = (struct weston_surface *)element;
+	struct weston_surface_rail_state *rail_state = (struct weston_surface_rail_state *)surface->backend_state;
+	struct rdp_rail_dump_window_context *context = (struct rdp_rail_dump_window_context *)data;
+	struct rdp_backend *b = context->peerCtx->rdpBackend;
+	assert(rail_state); // this iter is looping from window hash table, thus it must have rail_state initialized.
+	FILE *fp = context->fp;
+	char label[256] = {};
+	struct weston_geometry windowGeometry = {};
+	struct weston_view *view;
+	int contentBufferWidth, contentBufferHeight;
+	weston_surface_get_content_size(surface, &contentBufferWidth, &contentBufferHeight);
+
+	if (b->rdprail_shell_api &&
+		b->rdprail_shell_api->get_window_geometry)
+		b->rdprail_shell_api->get_window_geometry(surface, &windowGeometry);
+
+	rdp_rail_dump_window_label(surface, label, sizeof(label));
+	fprintf(fp,"    %s\n", label);
+	fprintf(fp,"    WindowId:0x%x, SurfaceId:0x%x\n",
+		rail_state->window_id, rail_state->surface_id);
+	fprintf(fp,"    PoolId:0x%x, BufferId:0x%x\n",
+		rail_state->pool_id, rail_state->buffer_id);
+	fprintf(fp,"    Position x:%d, y:%d width:%d height:%d\n",
+		rail_state->pos.x, rail_state->pos.y,
+		rail_state->pos.width, rail_state->pos.height);
+	fprintf(fp,"    RDP client position x:%d, y:%d width:%d height:%d\n",
+		rail_state->clientPos.x, rail_state->clientPos.y,
+		rail_state->clientPos.width, rail_state->clientPos.height);
+	fprintf(fp,"    Window geometry x:%d, y:%d, width:%d height:%d\n",
+		windowGeometry.x, windowGeometry.y,
+		windowGeometry.width, windowGeometry.height);
+	fprintf(fp,"    input extents: x1:%d, y1:%d, x2:%d, y2:%d\n",
+		surface->input.extents.x1, surface->input.extents.y1,
+		surface->input.extents.x2, surface->input.extents.y2);
+	fprintf(fp,"    bufferWidth:%d, bufferHeight:%d\n",
+		rail_state->bufferWidth, rail_state->bufferHeight);
+	fprintf(fp,"    bufferScaleFactorWidth:%.2f, bufferScaleFactorHeight:%.2f\n",
+		rail_state->bufferScaleFactorWidth, rail_state->bufferScaleFactorHeight);
+	fprintf(fp,"    contentBufferWidth:%d, contentBufferHeight:%d\n",
+		contentBufferWidth, contentBufferHeight);
+	fprintf(fp,"    is_opaque:%d\n", surface->is_opaque);
+	if (!surface->is_opaque && pixman_region32_not_empty(&surface->opaque)) {
+		int numRects = 0;
+		pixman_box32_t *rects = pixman_region32_rectangles(&surface->opaque, &numRects);
+		fprintf(fp, "    opaque region: numRects:%d\n", numRects);
+		for (int n = 0; n < numRects; n++)
+			fprintf(fp, "        [%d]: (%d, %d) - (%d, %d)\n",
+				n, rects[n].x1, rects[n].y1, rects[n].x2, rects[n].y2);
+	}
+	fprintf(fp,"    parent_surface:%p, isCursor:%d, isWindowCreated:%d\n",
+		rail_state->parent_surface, rail_state->isCursor, rail_state->isWindowCreated);
+	fprintf(fp,"    isWindowMinimized:%d, isWindowMinimizedRequested:%d\n",
+		rail_state->is_minimized, rail_state->is_minimized_requested);
+	fprintf(fp,"    isWindowMaximized:%d, isWindowMaximizedRequested:%d\n",
+		rail_state->is_maximized, rail_state->is_maximized_requested);
+	fprintf(fp,"    isWindowFullscreen:%d, isWindowFullscreenRequested:%d\n",
+		rail_state->is_fullscreen, rail_state->is_fullscreen_requested);
+	fprintf(fp,"    forceRecreateSurface:%d, error:%d\n",
+		rail_state->forceRecreateSurface, rail_state->error);
+	fprintf(fp,"    isUdatePending:%d, isFirstUpdateDone:%d\n",
+		rail_state->isUpdatePending, rail_state->isFirstUpdateDone);
+	fprintf(fp,"    surface:0x%p\n", surface);
+	wl_list_for_each(view, &surface->views, surface_link) {
+		fprintf(fp,"    view: %p\n", view);
+		fprintf(fp,"    view's alpha: %3.2f\n", view->alpha);
+		fprintf(fp,"    view's opaque region: x1:%d, y1:%d, x2:%d, y2:%d\n",
+			view->transform.opaque.extents.x1,
+			view->transform.opaque.extents.y1,
+			view->transform.opaque.extents.x2,
+			view->transform.opaque.extents.y2);
+		if (pixman_region32_not_empty(&view->transform.opaque)) {
+			int numRects = 0;
+			pixman_box32_t *rects = pixman_region32_rectangles(&view->transform.opaque, &numRects);
+			fprintf(fp,"    view's opaque region: numRects:%d\n", numRects);
+			for (int n = 0; n < numRects; n++)
+				fprintf(fp, "        [%d]: (%d, %d) - (%d, %d)\n",
+					n, rects[n].x1, rects[n].y1, rects[n].x2, rects[n].y2);
+		}
+		fprintf(fp,"    view's boundingbox: x1:%d, y1:%d, x2:%d, y2:%d\n",
+			view->transform.boundingbox.extents.x1,
+			view->transform.boundingbox.extents.y1,
+			view->transform.boundingbox.extents.x2,
+			view->transform.boundingbox.extents.y2);
+		fprintf(fp,"    view's scissor: x1:%d, y1:%d, x2:%d, y2:%d\n",
+			view->geometry.scissor.extents.x1,
+			view->geometry.scissor.extents.y1,
+			view->geometry.scissor.extents.x2,
+			view->geometry.scissor.extents.y2);
+		fprintf(fp,"    view's transform: enabled:%d\n",
+			view->transform.enabled);
+		if (view->transform.enabled)
+			print_matrix(fp, NULL, &view->transform.matrix);
+	}
+	print_matrix(fp, "buffer to surface matrix:", &surface->buffer_to_surface_matrix);
+	print_matrix(fp, "surface to buffer matrix:", &surface->surface_to_buffer_matrix);
+	fprintf(fp,"    output:0x%p (%s)\n", surface->output,
+		surface->output ? surface->output->name : "(no output assigned)");
+	if (surface->output) {
+		struct weston_head *base_head;
+		wl_list_for_each(base_head, &surface->output->head_list, output_link)
+			print_rdp_head(fp, to_rdp_head(base_head));
+	}
+	fprintf(fp,"\n");
+}
+
+static void
+rdp_rail_dump_window_binding(struct weston_keyboard *keyboard,
+			const struct timespec *time, uint32_t key, void *data)
+{
+	struct rdp_backend *b = (struct rdp_backend *)data;
+	RdpPeerContext *peerCtx;
+	if (b && b->rdp_peer && b->rdp_peer->context) {
+		/* print window from window hash table */
+		struct rdp_rail_dump_window_context context;
+		int err;
+		char *str;
+		size_t len;
+		FILE *fp = open_memstream(&str, &len);
+		assert(fp);
+		fprintf(fp,"\nrdp debug binding 'W' - dump all window.\n");
+		peerCtx = (RdpPeerContext *)b->rdp_peer->context;
+		dump_id_manager_state(fp, &peerCtx->windowId, "windowId");
+		dump_id_manager_state(fp, &peerCtx->surfaceId, "surfaceId");
+#ifdef HAVE_FREERDP_GFXREDIR_H
+		dump_id_manager_state(fp, &peerCtx->poolId, "poolId");
+		dump_id_manager_state(fp, &peerCtx->bufferId, "bufferId");
+#endif // HAVE_FREERDP_GFXREDIR_H
+		context.peerCtx = peerCtx;
+		context.fp = fp;
+		rdp_id_manager_for_each(&peerCtx->windowId, rdp_rail_dump_window_iter, (void*)&context);
+		err = fclose(fp);
+		assert(err == 0);
+		rdp_debug_error(b, "%s", str);
+		free(str);
+
+		/* print out compositor's scene graph */
+		str = weston_compositor_print_scene_graph(b->compositor);
+		rdp_debug_error(b, "%s", str);
+		free(str);
+	}
+}
+
 void *
 init_multi_monitor(struct weston_compositor *comp, void *output_handler_config)
 {
@@ -533,6 +798,7 @@ init_multi_monitor(struct weston_compositor *comp, void *output_handler_config)
 	struct monitor_private *mp;
 
 	mp = xzalloc(sizeof *mp);
+	mp->compositor = comp;
 	pixman_region32_init(&mp->regionWestonHeads);
 	pixman_region32_init(&mp->regionClientHeads);
 	mp->debug = weston_log_ctx_add_log_scope(comp->weston_log_ctx,
@@ -551,6 +817,16 @@ init_multi_monitor(struct weston_compositor *comp, void *output_handler_config)
 
 	rdp_disp_debug(mp, "RDP output handler: enable_fractional_hi_dpi_roundup = %d\n", config->enable_fractional_hi_dpi_roundup);
 	mp->enable_fractional_hi_dpi_roundup = config->enable_fractional_hi_dpi_roundup;
+
+	/* M to dump all outstanding monitor info */
+	mp->debug_binding_M = weston_compositor_add_debug_binding(mp->compositor, KEY_M,
+								 rdp_rail_dump_monitor_binding, mp);
+	/* W to dump all outstanding window info */
+	mp->debug_binding_W = weston_compositor_add_debug_binding(mp->compositor, KEY_W,
+								 rdp_rail_dump_window_binding, mp);
+	/* Trigger to enter debug key : CTRL+SHIFT+SPACE */
+        weston_install_debug_key_binding(mp->compositor, MODIFIER_CTRL);
+
 	return mp;
 }
 
