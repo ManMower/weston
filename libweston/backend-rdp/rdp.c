@@ -315,9 +315,6 @@ rdp_output_repaint(struct weston_output *output_base, pixman_region32_t *damage,
 						  output_base->transform,
 						  output_base->current_scale,
 						  damage, &transformed_damage);
-			/* note: if this code really need to walk peers in HiDef mode,     */
-			/*       it must walk from output_default in backend, in non-HiDef */
-			/*       there must be only one default output, so doesn't matter. */
 			wl_list_for_each(peer, &b->peers, link) {
 				if ((peer->flags & RDP_PEER_ACTIVATED) &&
 					(peer->flags & RDP_PEER_OUTPUT_ENABLED))
