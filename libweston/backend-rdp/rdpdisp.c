@@ -125,8 +125,9 @@ disp_start_monitor_layout_change(struct monitor_private *mp, freerdp_peer *clien
 	/* init move pending list */
 	wl_list_init(&mp->head_move_pending_list);
 	for (UINT32 i = 0; i < monitorCount; i++, monitorMode++) {
-		struct rdp_head *current;
-		wl_list_for_each(current, &mp->head_pending_list, link) {
+		struct rdp_head *current, *tmp;
+
+		wl_list_for_each_safe(current, tmp, &mp->head_pending_list, link) {
 			if (memcmp(&current->monitorMode, monitorMode, sizeof(*monitorMode)) == 0) {
 				rdp_disp_debug(mp, "Head mode exact match:%s, x:%d, y:%d, width:%d, height:%d, is_primary: %d\n",
 					       current->base.name,
