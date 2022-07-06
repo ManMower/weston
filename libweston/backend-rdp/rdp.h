@@ -167,13 +167,6 @@ struct rdp_peers_item {
 	struct wl_list link; // rdp_output::peers
 };
 
-struct rdp_monitor_mode {
-	rdpMonitor monitorDef; // in client coordinate.
-	int scale; // per monitor DPI scaling.
-	float clientScale;
-	pixman_rectangle32_t rectWeston; // in weston coordinate.
-};
-
 struct rdp_output {
 	struct weston_output base;
 	struct wl_event_source *finish_frame_timer;

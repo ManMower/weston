@@ -46,6 +46,13 @@
 #define rdp_disp_debug(b, ...) \
 	rdp_debug_print(b->debug, false, __VA_ARGS__)
 
+struct rdp_monitor_mode {
+	rdpMonitor monitorDef; // in client coordinate.
+	int scale; // per monitor DPI scaling.
+	float clientScale;
+	pixman_rectangle32_t rectWeston; // in weston coordinate.
+};
+
 struct monitor_private {
 	struct weston_compositor *compositor;
 	struct weston_log_scope *debug;
