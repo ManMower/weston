@@ -550,3 +550,18 @@ to_client_coordinate(RdpPeerContext *peerContext, struct weston_output *output, 
 	rdpdisp_to_client_coordinate(b->monitor_private, output,
 				     x, y, width, height);
 }
+
+void
+rdp_head_get_physical_size(struct weston_head *base, int *phys_width, int *phys_height)
+{
+        struct rdp_backend *b = to_rdp_backend(base->compositor);
+
+	if (!b->monitor_private) {
+		/* This is a virtual output, so report a zero physical size.
+		 * It's better to let frontends/clients use their defaults. */
+		*phys_width = 0;
+		*phys_height = 0;
+		return;
+	}
+	rdpdisp_head_get_physical_size(base, phys_width, phys_height);
+}

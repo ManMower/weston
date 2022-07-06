@@ -355,6 +355,9 @@ to_weston_coordinate(RdpPeerContext *peerContext, int32_t *x, int32_t *y, uint32
 void
 to_client_coordinate(RdpPeerContext *peerContext, struct weston_output *output, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height);
 
+void
+rdp_head_get_physical_size(struct weston_head *base, int *phys_width, int *phys_height);
+
 int
 rdp_wl_array_read_fd(struct wl_array *array, int fd);
 

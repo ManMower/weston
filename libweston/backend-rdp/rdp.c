@@ -460,7 +460,6 @@ rdp_output_set_size(struct weston_output *base,
 {
 	struct rdp_output *output = to_rdp_output(base);
 	struct rdp_backend *rdpBackend = to_rdp_backend(base->compositor);
-	freerdp_peer *client = rdpBackend->rdp_peer;
 	struct weston_head *head;
 	struct weston_mode *currentMode;
 	struct weston_mode initMode;
@@ -469,18 +468,11 @@ rdp_output_set_size(struct weston_output *base,
 	assert(!output->base.current_mode);
 
 	wl_list_for_each(head, &output->base.head_list, output_link) {
+		int pw, ph;
 		weston_head_set_monitor_strings(head, "weston", "rdp", NULL);
 
-		/* This is a virtual output, so report a zero physical size.
-		 * It's better to let frontends/clients use their defaults. */
-		if (rdpBackend->monitor_private) {
-			int pw, ph;
-
-			rdpdisp_head_get_physical_size(head, &pw, &ph);
-			weston_head_set_physical_size(head, pw, ph);
-		} else {
-			weston_head_set_physical_size(head, 0, 0);
-		}
+		rdp_head_get_physical_size(head, &pw, &ph);
+		weston_head_set_physical_size(head, pw, ph);
 	}
 
 	initMode.flags = WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED;
