@@ -1801,6 +1801,28 @@ xf_suppress_output(rdpContext *context, BYTE allow, const RECTANGLE_16 *area)
 	return TRUE;
 }
 
+bool
+handle_adjust_monitor_layout(freerdp_peer *client, int monitor_count, rdpMonitor *monitors)
+{
+	RdpPeerContext *peerCtx = (RdpPeerContext *)client->context;
+	struct rdp_backend *b = peerCtx->rdpBackend;
+	rdpSettings *settings = client->context->settings;
+	int width, height;
+	bool ret;
+
+	ret = rdp_disp_handle_adjust_monitor_layout(b->monitor_private,
+						    monitor_count, monitors);
+	if (!ret)
+		return false;
+
+	/* it looks like settings' desktopWidth/desktopHeight only represents primary */
+	rdpdisp_get_primary_size(b->monitor_private, &width, &height);
+	settings->DesktopWidth = width;
+	settings->DesktopHeight = height;
+
+	return true;
+}
+
 static BOOL
 xf_peer_adjust_monitor_layout(freerdp_peer *client)
 {

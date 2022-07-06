@@ -366,6 +366,9 @@ struct rdp_loop_task {
 
 // rdp.c
 void convert_rdp_keyboard_to_xkb_rule_names(UINT32 KeyboardType, UINT32 KeyboardSubType, UINT32 KeyboardLayout, struct xkb_rule_names *xkbRuleNames);
+
+bool
+handle_adjust_monitor_layout(freerdp_peer *client, int monitor_count, rdpMonitor *monitors);
 struct rdp_head * rdp_head_create(struct weston_compositor *compositor, BOOL isPrimary, struct rdp_monitor_mode *monitorMode);
 void rdp_head_destroy(struct weston_compositor *compositor, struct rdp_head *head);
 
@@ -420,7 +423,7 @@ void *
 init_multi_monitor(struct weston_compositor *compositor, void *config);
 
 bool
-handle_adjust_monitor_layout(void *priv, freerdp_peer *client, int monitor_count, rdpMonitor *monitors);
+rdp_disp_handle_adjust_monitor_layout(void *priv, int monitor_count, rdpMonitor *monitors);
 
 void
 free_private(void **priv);

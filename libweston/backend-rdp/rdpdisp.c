@@ -308,11 +308,6 @@ disp_set_monitor_layout_change(struct monitor_private *mp, freerdp_peer *client,
 			struct weston_mode new_mode = {};
 			new_mode.width = monitorMode->monitorDef.width;
 			new_mode.height = monitorMode->monitorDef.height;
-			if (monitorMode->monitorDef.is_primary) {
-				/* it looks settings's desktopWidth/Height only represents primary */
-				settings->DesktopWidth = new_mode.width;
-				settings->DesktopHeight = new_mode.height;
-			}
 			rdp_disp_debug(mp, "Head mode change:%s NEW width:%d, height:%d, scale:%d, clientScale:%f\n",
 				output->name, monitorMode->monitorDef.width,
 					      monitorMode->monitorDef.height,
