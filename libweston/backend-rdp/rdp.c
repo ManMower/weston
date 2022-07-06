@@ -68,6 +68,16 @@
 #include <openssl/rand.h>
 #endif
 
+struct rdp_head {
+	struct weston_head base;
+};
+
+static struct rdp_head *
+to_rdp_head(struct weston_head *base)
+{
+	return container_of(base, struct rdp_head, base);
+}
+
 extern PWtsApiFunctionTable FreeRDP_InitWtsApi(void);
 
 static BOOL
@@ -252,7 +262,7 @@ static void
 rdp_peer_refresh_region(pixman_region32_t *region, freerdp_peer *peer)
 {
 	RdpPeerContext *context = (RdpPeerContext *)peer->context;
-	struct rdp_output *output = context->rdpBackend->output_default;
+	struct rdp_output *output = context->rdpBackend->output;
 	rdpSettings *settings = peer->context->settings;
 
 	if (settings->RemoteFxCodec)
@@ -445,38 +455,6 @@ rdp_switch_mode(struct weston_output *output, struct weston_mode *target_mode)
 }
 
 static int
-rdp_output_get_config(struct weston_output *base,
-			int *width, int *height, int *scale)
-{
-	struct rdp_output *output = to_rdp_output(base);
-	struct rdp_backend *rdpBackend = to_rdp_backend(base->compositor);
-	freerdp_peer *client = rdpBackend->rdp_peer;
-	struct weston_head *head;
-
-	wl_list_for_each(head, &output->base.head_list, output_link) {
-		struct rdp_head *h = to_rdp_head(head);
-
-		rdp_debug(rdpBackend, "get_config: attached head [%d]: make:%s, mode:%s, name:%s, (%p)\n",
-			h->index, head->make, head->model, head->name, head);
-		rdp_debug(rdpBackend, "get_config: attached head [%d]: x:%d, y:%d, width:%d, height:%d\n",
-			h->index, h->monitorMode.monitorDef.x, h->monitorMode.monitorDef.y,
-				  h->monitorMode.monitorDef.width, h->monitorMode.monitorDef.height);
-
-		/* In HiDef RAIL mode, get monitor resolution from RDP client if provided. */
-		if (client && client->context->settings->HiDefRemoteApp) {
-			if (h->monitorMode.monitorDef.width && h->monitorMode.monitorDef.height) {
-				/* Return true client resolution (not adjusted by DPI) */
-				*width = h->monitorMode.monitorDef.width;
-				*height = h->monitorMode.monitorDef.height;
-				*scale = h->monitorMode.scale;
-			}
-			break; // only one head per output in HiDef.
-		}
-	}
-	return 0;
-}
-
-static int
 rdp_output_set_size(struct weston_output *base,
 			int width, int height)
 {
@@ -491,26 +469,17 @@ rdp_output_set_size(struct weston_output *base,
 	assert(!output->base.current_mode);
 
 	wl_list_for_each(head, &output->base.head_list, output_link) {
-		struct rdp_head *h = to_rdp_head(head);
-
 		weston_head_set_monitor_strings(head, "weston", "rdp", NULL);
-
-		rdp_debug(rdpBackend, "set_size: attached head [%d]: make:%s, mode:%s, name:%s, (%p)\n",
-			h->index, head->make, head->model, head->name, head);
-		rdp_debug(rdpBackend, "set_size: attached head [%d]: x:%d, y:%d, width:%d, height:%d\n",
-			h->index, h->monitorMode.monitorDef.x, h->monitorMode.monitorDef.y,
-				  h->monitorMode.monitorDef.width, h->monitorMode.monitorDef.height);
 
 		/* This is a virtual output, so report a zero physical size.
 		 * It's better to let frontends/clients use their defaults. */
-		/* If MonitorDef has it, use it from MonitorDef */
-		weston_head_set_physical_size(head,
-			h->monitorMode.monitorDef.attributes.physicalWidth,
-			h->monitorMode.monitorDef.attributes.physicalHeight);
+		if (rdpBackend->monitor_private) {
+			int pw, ph;
 
-		/* In HiDef RAIL mode, set this mode as preferred mode */
-		if (client && client->context->settings->HiDefRemoteApp) {
-			break; // only one head per output in HiDef.
+			rdpdisp_head_get_physical_size(head, &pw, &ph);
+			weston_head_set_physical_size(head, pw, ph);
+		} else {
+			weston_head_set_physical_size(head, 0, 0);
 		}
 	}
 
@@ -553,19 +522,8 @@ rdp_output_enable(struct weston_output *base)
 	if (b->rdp_peer && b->rdp_peer->context->settings->HiDefRemoteApp)
 		HiDefRemoteApp = true;
 
-	if (HiDefRemoteApp) {
-		struct weston_head *eh;
-		wl_list_for_each(eh, &output->base.head_list, output_link) {
-			struct rdp_head *h = to_rdp_head(eh);
-			rdp_debug(b, "move head/output %s (%d,%d) -> (%d,%d)\n",
-				output->base.name, output->base.x, output->base.y,
-				h->monitorMode.rectWeston.x,
-				h->monitorMode.rectWeston.y);
-			weston_output_move(&output->base,
-				h->monitorMode.rectWeston.x,
-				h->monitorMode.rectWeston.y);
-			break; // must be only 1 head per output.
-		}
+	if (HiDefRemoteApp && b->monitor_private) {
+		rdpdisp_output_enable(b->monitor_private, base);
 	} else {
 		output->shadow_surface = pixman_image_create_bits(PIXMAN_x8r8g8b8,
 								  output->base.current_mode->width,
@@ -582,6 +540,7 @@ rdp_output_enable(struct weston_output *base)
 			output->shadow_surface = NULL;
 			return -1;
 		}
+		b->output = output;
 	}
 
 	loop = wl_display_get_event_loop(b->compositor->wl_display);
@@ -616,44 +575,8 @@ rdp_output_destroy(struct weston_output *base)
 
 	rdp_output_disable(&output->base);
 	weston_output_release(&output->base);
-	wl_list_remove(&output->link);
 
 	free(output);
-}
-
-static int
-rdp_output_attach_head(struct weston_output *output_base,
-		       struct weston_head *head_base)
-{
-	struct rdp_backend *b = to_rdp_backend(output_base->compositor);
-	struct rdp_output *o = to_rdp_output(output_base);
-	struct rdp_head *h = to_rdp_head(head_base);
-	rdp_debug(b, "Head attaching: %s, index:%d, is_primary: %d\n",
-		head_base->name, h->index, h->monitorMode.monitorDef.is_primary);
-	if (!wl_list_empty(&output_base->head_list)) {
-		rdp_debug_error(b, "attaching more than 1 head to single output (= clone) is not supported\n");
-		return -1;
-	}
-	o->index = h->index;
-	if (h->monitorMode.monitorDef.is_primary) {
-		assert(b->output_default == NULL);
-		b->output_default = o;
-	}
-	return 0;
-}
-
-static void
-rdp_output_detach_head(struct weston_output *output_base,
-		       struct weston_head *head_base)
-{
-	struct rdp_backend *b = to_rdp_backend(output_base->compositor);
-	struct rdp_head *h = to_rdp_head(head_base);
-	rdp_debug(b, "Head detaching: %s, index:%d, is_primary: %d\n",
-		head_base->name, h->index, h->monitorMode.monitorDef.is_primary);
-	if (h->monitorMode.monitorDef.is_primary) {
-		assert(b->output_default == to_rdp_output(output_base));
-		b->output_default = NULL;
-	}
 }
 
 static struct weston_output *
@@ -666,74 +589,38 @@ rdp_output_create(struct weston_compositor *compositor, const char *name)
 	if (output == NULL)
 		return NULL;
 
-	wl_list_insert(&backend->output_list, &output->link);
-
 	weston_output_init(&output->base, compositor, name);
 
 	output->base.destroy = rdp_output_destroy;
 	output->base.disable = rdp_output_disable;
 	output->base.enable = rdp_output_enable;
-	output->base.attach_head = rdp_output_attach_head;
-	output->base.detach_head = rdp_output_detach_head;
+	output->base.attach_head = NULL;
 
 	weston_compositor_add_pending_output(&output->base, compositor);
 
 	return &output->base;
 }
 
-struct rdp_head *
-rdp_head_create(struct weston_compositor *compositor, BOOL isPrimary, struct rdp_monitor_mode *monitorMode)
+static int
+rdp_head_create(struct weston_compositor *compositor, const char *name)
 {
-	struct rdp_backend *b = to_rdp_backend(compositor);
 	struct rdp_head *head;
-	char name[13] = {}; // 'rdp-' + 8 chars for hex uint32_t + NULL.
 
 	head = zalloc(sizeof *head);
 	if (!head)
-		return NULL;
-
-	head->index = b->head_index++;
-	if (monitorMode) {
-		head->monitorMode = *monitorMode;
-		pixman_region32_init_rect(&head->regionClient,
-			monitorMode->monitorDef.x, monitorMode->monitorDef.y,
-			monitorMode->monitorDef.width, monitorMode->monitorDef.height);
-		pixman_region32_init_rect(&head->regionWeston,
-			monitorMode->rectWeston.x, monitorMode->rectWeston.y,
-			monitorMode->rectWeston.width, monitorMode->rectWeston.height);
-	} else {
-		head->monitorMode.scale = 1.0f;
-		head->monitorMode.clientScale = 1;
-		pixman_region32_init(&head->regionClient);
-		pixman_region32_init(&head->regionWeston);
-	}
-	if (isPrimary) {
-		rdp_debug(b, "Default head is being added\n");
-		b->head_default = head;
-	}
-	head->monitorMode.monitorDef.is_primary = isPrimary;
-	wl_list_insert(&b->head_list, &head->link);
-	sprintf(name, "rdp-%x", head->index);
+		return -1;
 
 	weston_head_init(&head->base, name);
 	weston_head_set_connection_status(&head->base, true);
 	weston_compositor_add_head(compositor, &head->base);
 
-	return head;
+	return 0;
 }
 
-void
-rdp_head_destroy(struct weston_compositor *compositor, struct rdp_head *head)
+static void
+rdp_head_destroy(struct rdp_head *head)
 {
-	struct rdp_backend *b = to_rdp_backend(compositor);
 	weston_head_release(&head->base);
-	wl_list_remove(&head->link);
-	pixman_region32_fini(&head->regionWeston);
-	pixman_region32_fini(&head->regionClient);
-	if (b->head_default == head) {
-		rdp_debug(b, "Default head is being removed\n");
-		b->head_default = NULL;
-	}
 	free(head);
 }
 
@@ -745,7 +632,7 @@ rdp_destroy(struct weston_compositor *ec)
 	struct rdp_peers_item *rdp_peer, *tmp;
 	int i;
 
-	if (b->output_default) {
+	if (b->output) {
 		wl_list_for_each_safe(rdp_peer, tmp, &b->peers, link) {
 			freerdp_peer* client = rdp_peer->peer;
 
@@ -780,10 +667,9 @@ rdp_destroy(struct weston_compositor *ec)
 
 	weston_compositor_shutdown(ec);
 
-	wl_list_for_each_safe(base, next, &ec->head_list, compositor_link)
-		rdp_head_destroy(ec, to_rdp_head(base));
-
-	assert(wl_list_empty(&b->head_list));
+	if (!b->monitor_private)
+		wl_list_for_each_safe(base, next, &ec->head_list, compositor_link)
+			rdp_head_destroy(to_rdp_head(base));
 
 	freerdp_listener_free(b->listener);
 
@@ -1228,8 +1114,8 @@ xf_peer_activate(freerdp_peer* client)
 		weston_output = NULL;
 	} else {
 		/* multiple monitor is not supported in non-HiDef */
-		assert(b->output_default);
-		output = b->output_default;
+		assert(b->output);
+		output = b->output;
 		rdp_debug_error(b, "%s: DesktopWidth:%d, DesktopHeigh:%d, DesktopScaleFactor:%d\n", __FUNCTION__,
 			settings->DesktopWidth, settings->DesktopHeight, settings->DesktopScaleFactor);
 		if (output->base.width != (int)settings->DesktopWidth ||
@@ -1258,24 +1144,13 @@ xf_peer_activate(freerdp_peer* client)
 				}
 				weston_output_mode_set_native(&output->base, target_mode,
 					output->base.scale ? output->base.scale : 1);
-				weston_head_set_physical_size(&b->head_default->base,
-					settings->DesktopPhysicalWidth,
-					settings->DesktopPhysicalHeight);
 			}
 		}
-
-		pixman_region32_clear(&b->head_default->regionClient);
-		pixman_region32_init_rect(&b->head_default->regionClient,
-			0, 0, settings->DesktopWidth, settings->DesktopHeight);
 
 		weston_output = &output->base;
 
 		rdp_debug(b, "%s: OutputWidth:%d, OutputHeight:%d, OutputScaleFactor:%d\n", __FUNCTION__,
 			weston_output->width, weston_output->height, weston_output->scale);
-
-		pixman_region32_clear(&b->head_default->regionWeston);
-		pixman_region32_init_rect(&b->head_default->regionWeston,
-			0, 0, weston_output->width, weston_output->height);
 
 		rfx_context_reset(peerCtx->rfx_context, weston_output->width, weston_output->height);
 		nsc_context_reset(peerCtx->nsc_context, weston_output->width, weston_output->height);
@@ -1372,6 +1247,7 @@ rdp_translate_and_notify_mouse_position(RdpPeerContext *peerContext, UINT16 x, U
 	struct timespec time;
 	int32_t x1, y1;
 	int sx = x, sy = y;
+
 	if (!peerContext->item.seat)
 		return false;
 
@@ -1634,7 +1510,7 @@ xf_input_synchronize_event(rdpInput *input, UINT32 flags)
 	freerdp_peer *client = input->context->peer;
 	RdpPeerContext *peerCtx = (RdpPeerContext *)input->context;
 	struct rdp_backend *b = peerCtx->rdpBackend;
-	struct rdp_output *output = b->output_default;
+	struct rdp_output *output = b->output;
 	pixman_box32_t box;
 	pixman_region32_t damage;
 
@@ -1889,7 +1765,7 @@ xf_peer_adjust_monitor_layout(freerdp_peer *client)
 		monitors[0].attributes.deviceScaleFactor = settings->DeviceScaleFactor;
 		monitors[0].orig_screen = 0;
 	}
-	success = handle_adjust_monitor_layout(b->monitor_private, client, monitor_count, monitors);
+	success = handle_adjust_monitor_layout(client, monitor_count, monitors);
 	free(monitors);
 	return success;
 }
@@ -2219,7 +2095,6 @@ rdp_backend_create(struct weston_compositor *compositor,
 	char *s;
 
 	struct weston_head *base, *next;
-	struct rdp_output *output;
 	int i;
 	struct timespec ts;
 
@@ -2242,10 +2117,7 @@ rdp_backend_create(struct weston_compositor *compositor,
 	b->rdp_monitor_refresh_rate = config->rdp_monitor_refresh_rate * 1000;
 	b->output_handler_config = config->output_handler_config;
 
-	wl_list_init(&b->output_list);
 	wl_list_init(&b->peers);
-	wl_list_init(&b->head_list);
-	b->head_index = 0;
 
 	b->debug = weston_log_ctx_add_log_scope(compositor->weston_log_ctx,
 						   "rdp-backend",
@@ -2336,8 +2208,10 @@ rdp_backend_create(struct weston_compositor *compositor,
 	if (pixman_renderer_init(compositor) < 0)
 		goto err_compositor;
 
-	if (rdp_head_create(compositor, TRUE, NULL) == NULL)
-		goto err_compositor;
+	/* If we don't have an output handler, make an output */
+	if (!b->output_handler_config)
+		if (rdp_head_create(compositor, "rdp") < 0)
+			goto err_compositor;
 
 	if (rdp_rail_backend_create(b, config) < 0)
 		goto err_output;
@@ -2386,19 +2260,21 @@ rdp_backend_create(struct weston_compositor *compositor,
 		goto err_output;
 	}
 
-	b->monitor_private = init_multi_monitor(b->compositor,
-						b->output_handler_config);
+	if (b->output_handler_config)
+		b->monitor_private = init_multi_monitor(b->compositor,
+							b->output_handler_config);
 
 	return b;
 
 err_listener:
 	freerdp_listener_free(b->listener);
 err_output:
-	wl_list_for_each(output, &b->output_list, link)
-		weston_output_release(&output->base);
+	if (!b->output_handler_config)
+		weston_output_release(&b->output->base);
 err_compositor:
-	wl_list_for_each_safe(base, next, &compositor->head_list, compositor_link)
-		rdp_head_destroy(compositor, to_rdp_head(base));
+	if (!b->output_handler_config)
+		wl_list_for_each_safe(base, next, &compositor->head_list, compositor_link)
+			rdp_head_destroy(to_rdp_head(base));
 
 	weston_compositor_shutdown(compositor);
 err_free_strings:

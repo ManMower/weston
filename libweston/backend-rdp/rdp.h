@@ -90,11 +90,7 @@ struct rdp_backend {
 
 	freerdp_listener *listener;
 	struct wl_event_source *listener_events[MAX_FREERDP_FDS];
-	struct rdp_output *output_default; // default output created at backend initialize
-	struct rdp_head *head_default; // default head created at backend initialize
-	struct wl_list output_list; // rdp_output::link
-	struct wl_list head_list; // rdp_head::link
-	uint32_t head_index;
+	struct rdp_output *output; // default output created at backend initialize
 	struct weston_log_scope *debug;
 	uint32_t debugLevel;
 	struct weston_log_scope *debugClipboard;
@@ -178,24 +174,10 @@ struct rdp_monitor_mode {
 	pixman_rectangle32_t rectWeston; // in weston coordinate.
 };
 
-struct rdp_head {
-	struct weston_head base;
-	uint32_t index;
-	struct rdp_monitor_mode monitorMode;
-	/*TODO: these region/rectangles can be moved to rdp_output */
-	pixman_region32_t regionClient; // in client coordnate.
-	pixman_region32_t regionWeston; // in weston coordnate.
-
-	struct wl_list link; // rdp_backend::head_list
-};
-
 struct rdp_output {
 	struct weston_output base;
 	struct wl_event_source *finish_frame_timer;
 	pixman_image_t *shadow_surface;
-	uint32_t index;
-
-	struct wl_list link; // rdp_backend::output_list
 };
 
 typedef struct _rdp_audio_block_info {
@@ -369,8 +351,6 @@ void convert_rdp_keyboard_to_xkb_rule_names(UINT32 KeyboardType, UINT32 Keyboard
 
 bool
 handle_adjust_monitor_layout(freerdp_peer *client, int monitor_count, rdpMonitor *monitors);
-struct rdp_head * rdp_head_create(struct weston_compositor *compositor, BOOL isPrimary, struct rdp_monitor_mode *monitorMode);
-void rdp_head_destroy(struct weston_compositor *compositor, struct rdp_head *head);
 
 // rdputil.c
 pid_t rdp_get_tid(void);
@@ -437,6 +417,22 @@ to_client_coordinate(RdpPeerContext *peerContext, struct weston_output *output, 
 void
 get_client_extents(void *priv, int32_t *x1, int32_t *y1, int32_t *x2, int32_t *y2);
 
+int
+rdp_output_get_config(struct weston_output *base,
+                      int *width, int *height, int *scale);
+
+struct weston_output *
+rdpdisp_get_primary_output(void *rdp_backend);
+
+void
+rdpdisp_get_primary_size(void *priv, int *width, int *height);
+
+void
+rdpdisp_output_enable(void *priv, struct weston_output *out);
+
+void
+rdpdisp_head_get_physical_size(struct weston_head *base, int *phys_width, int *phys_height);
+
 // rdpaudio.c
 int rdp_audio_init(RdpPeerContext *peerCtx);
 void rdp_audio_destroy(RdpPeerContext *peerCtx);
@@ -448,12 +444,6 @@ void rdp_audioin_destroy(RdpPeerContext *peerCtx);
 // rdpclip.c
 int rdp_clipboard_init(freerdp_peer* client);
 void rdp_clipboard_destroy(RdpPeerContext *peerCtx);
-
-static inline struct rdp_head *
-to_rdp_head(struct weston_head *base)
-{
-	return container_of(base, struct rdp_head, base);
-}
 
 static inline struct rdp_output *
 to_rdp_output(struct weston_output *base)

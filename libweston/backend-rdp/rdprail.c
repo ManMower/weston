@@ -2734,7 +2734,7 @@ disp_monitor_layout_change_callback(bool freeOnly, void *dataIn)
 		goto out;
 
 	/* Skip reset graphics on failure */
-	if (!handle_adjust_monitor_layout(b->monitor_private, client, data->count, data->monitors))
+	if (!handle_adjust_monitor_layout(client, data->count, data->monitors))
 		goto out;
 
 	reset_monitor_def = xmalloc(sizeof(MONITOR_DEF) * data->count);
@@ -3895,13 +3895,11 @@ rdp_rail_notify_app_list(void *rdp_backend, struct weston_rdprail_app_list_data 
 static struct weston_output *
 rdp_rail_get_primary_output(void *rdp_backend)
 {
-	struct rdp_backend *b = (struct rdp_backend*)rdp_backend;
-	struct rdp_head *current;
-	wl_list_for_each(current, &b->head_list, link) {
-		if (current->monitorMode.monitorDef.is_primary)
-			return current->base.output;
-	}
-	return NULL;
+	struct rdp_backend *b = (struct rdp_backend *)rdp_backend;
+
+	if (b->monitor_private)
+		return rdpdisp_get_primary_output(b->monitor_private);
+	return &b->output->base;
 }
 
 struct weston_rdprail_api rdprail_api = {
