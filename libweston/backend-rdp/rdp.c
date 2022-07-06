@@ -574,7 +574,6 @@ rdp_output_destroy(struct weston_output *base)
 static struct weston_output *
 rdp_output_create(struct weston_compositor *compositor, const char *name)
 {
-	struct rdp_backend *backend = to_rdp_backend(compositor);
 	struct rdp_output *output;
 
 	output = zalloc(sizeof *output);
