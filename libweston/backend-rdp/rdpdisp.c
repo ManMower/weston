@@ -91,7 +91,6 @@ to_rdp_head(struct weston_head *base)
 static struct rdp_head *
 rdp_head_create(struct monitor_private *mp, struct rdp_monitor_mode *monitorMode)
 {
-	struct rdp_backend *b = to_rdp_backend(mp->compositor);
 	struct rdp_head *head;
 	char name[13] = {}; // 'rdp-' + 8 chars for hex uint32_t + NULL.
 
@@ -113,7 +112,7 @@ rdp_head_create(struct monitor_private *mp, struct rdp_monitor_mode *monitorMode
 				  monitorMode->rectWeston.width,
 				  monitorMode->rectWeston.height);
 	if (monitorMode->monitorDef.is_primary) {
-		rdp_debug(b, "Default head is being added\n");
+		rdp_disp_debug(mp, "Default head is being added\n");
 	}
 	wl_list_insert(&mp->head_list, &head->link);
 	sprintf(name, "rdp-%x", head->index);
@@ -825,12 +824,12 @@ rdp_rail_dump_window_binding(struct weston_keyboard *keyboard,
 		rdp_id_manager_for_each(&peerCtx->windowId, rdp_rail_dump_window_iter, (void*)&context);
 		err = fclose(fp);
 		assert(err == 0);
-		rdp_debug_error(b, "%s", str);
+		weston_log("%s", str);
 		free(str);
 
 		/* print out compositor's scene graph */
 		str = weston_compositor_print_scene_graph(b->compositor);
-		rdp_debug_error(b, "%s", str);
+		weston_log("%s", str);
 		free(str);
 	}
 }
@@ -1039,15 +1038,16 @@ rdp_output_get_config(struct weston_output *base,
 {
 	struct rdp_output *output = to_rdp_output(base);
 	struct rdp_backend *rdpBackend = to_rdp_backend(base->compositor);
+	struct monitor_private *mp = rdpBackend->monitor_private;
 	freerdp_peer *client = rdpBackend->rdp_peer;
 	struct weston_head *head;
 
 	wl_list_for_each(head, &output->base.head_list, output_link) {
 		struct rdp_head *h = to_rdp_head(head);
 
-		rdp_debug(rdpBackend, "get_config: attached head [%d]: make:%s, mode:%s, name:%s, (%p)\n",
+		rdp_disp_debug(mp, "get_config: attached head [%d]: make:%s, mode:%s, name:%s, (%p)\n",
 			  h->index, head->make, head->model, head->name, head);
-		rdp_debug(rdpBackend, "get_config: attached head [%d]: x:%d, y:%d, width:%d, height:%d\n",
+		rdp_disp_debug(mp, "get_config: attached head [%d]: x:%d, y:%d, width:%d, height:%d\n",
 			  h->index, h->monitorMode.monitorDef.x, h->monitorMode.monitorDef.y,
 			  h->monitorMode.monitorDef.width, h->monitorMode.monitorDef.height);
 
