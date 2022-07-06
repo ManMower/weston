@@ -349,6 +349,12 @@ handle_adjust_monitor_layout(freerdp_peer *client, int monitor_count, rdpMonitor
 pid_t rdp_get_tid(void);
 void rdp_debug_print(struct weston_log_scope *log_scope, bool cont, char *fmt, ...);
 
+struct weston_output *
+to_weston_coordinate(RdpPeerContext *peerContext, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height);
+
+void
+to_client_coordinate(RdpPeerContext *peerContext, struct weston_output *output, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height);
+
 int
 rdp_wl_array_read_fd(struct wl_array *array, int fd);
 
@@ -402,17 +408,17 @@ void
 free_private(void **priv);
 
 struct weston_output *
-to_weston_coordinate(RdpPeerContext *peerContext, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height);
+rdpdisp_to_weston_coordinate(void *priv, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height);
 
 void
-to_client_coordinate(RdpPeerContext *peerContext, struct weston_output *output, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height);
+rdpdisp_to_client_coordinate(void *priv, struct weston_output *output, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height);
 
 void
 get_client_extents(void *priv, int32_t *x1, int32_t *y1, int32_t *x2, int32_t *y2);
 
 int
-rdp_output_get_config(struct weston_output *base,
-                      int *width, int *height, int *scale);
+rdpdisp_output_get_config(void *priv, struct weston_output *base,
+			  int *width, int *height, int *scale);
 
 struct weston_output *
 rdpdisp_get_primary_output(void *rdp_backend);

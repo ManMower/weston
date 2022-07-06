@@ -758,10 +758,9 @@ to_weston_scale_only(struct weston_output *output, float scale, int *x, int *y)
 
 /* Input x/y in client space, output x/y in weston space */
 struct weston_output *
-to_weston_coordinate(RdpPeerContext *peerContext, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height)
+rdpdisp_to_weston_coordinate(void *priv, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height)
 {
-	struct rdp_backend *b = peerContext->rdpBackend;
-	struct monitor_private *mp = b->monitor_private;
+	struct monitor_private *mp = priv;
 	int sx = *x, sy = *y;
 	struct rdp_head *head_iter;
 
@@ -803,9 +802,9 @@ to_client_scale_only(struct weston_output *output, float scale, int *x, int *y)
 
 /* Input x/y in weston space, output x/y in client space */
 void
-to_client_coordinate(RdpPeerContext *peerContext, struct weston_output *output, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height)
+rdpdisp_to_client_coordinate(void *priv, struct weston_output *output, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height)
 {
-	struct monitor_private *mp = peerContext->rdpBackend->monitor_private;
+	struct monitor_private *mp = priv;
 	int sx = *x, sy = *y;
 	struct weston_head *head_iter;
 
@@ -867,16 +866,13 @@ free_private(void **priv)
 }
 
 int
-rdp_output_get_config(struct weston_output *base,
-		      int *width, int *height, int *scale)
+rdpdisp_output_get_config(void *priv, struct weston_output *base,
+			  int *width, int *height, int *scale)
 {
-	struct rdp_output *output = to_rdp_output(base);
-	struct rdp_backend *rdpBackend = to_rdp_backend(base->compositor);
-	struct monitor_private *mp = rdpBackend->monitor_private;
-	freerdp_peer *client = rdpBackend->rdp_peer;
+	struct monitor_private *mp = priv;
 	struct weston_head *head;
 
-	wl_list_for_each(head, &output->base.head_list, output_link) {
+	wl_list_for_each(head, &base->head_list, output_link) {
 		struct rdp_head *h = to_rdp_head(head);
 
 		rdp_disp_debug(mp, "get_config: attached head [%d]: make:%s, mode:%s, name:%s, (%p)\n",
@@ -885,16 +881,13 @@ rdp_output_get_config(struct weston_output *base,
 			  h->index, h->monitorMode.monitorDef.x, h->monitorMode.monitorDef.y,
 			  h->monitorMode.monitorDef.width, h->monitorMode.monitorDef.height);
 
-		/* In HiDef RAIL mode, get monitor resolution from RDP client if provided. */
-		if (client && client->context->settings->HiDefRemoteApp) {
-			if (h->monitorMode.monitorDef.width && h->monitorMode.monitorDef.height) {
-				/* Return true client resolution (not adjusted by DPI) */
-				*width = h->monitorMode.monitorDef.width;
-				*height = h->monitorMode.monitorDef.height;
-				*scale = h->monitorMode.scale;
-			}
-			break; // only one head per output in HiDef.
+		if (h->monitorMode.monitorDef.width && h->monitorMode.monitorDef.height) {
+			/* Return true client resolution (not adjusted by DPI) */
+			*width = h->monitorMode.monitorDef.width;
+			*height = h->monitorMode.monitorDef.height;
+			*scale = h->monitorMode.scale;
 		}
+		break; // only one head per output in HiDef.
 	}
 	return 0;
 }

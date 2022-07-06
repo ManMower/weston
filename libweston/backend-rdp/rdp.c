@@ -2008,6 +2008,19 @@ rdp_generate_session_tls(struct rdp_backend *b)
 }
 #endif
 
+static int
+rdp_output_get_config(struct weston_output *base,
+                      int *width, int *height, int *scale)
+{
+	struct rdp_backend *b = to_rdp_backend(base->compositor);
+
+	if (!b->monitor_private)
+		return 0;
+
+	return rdpdisp_output_get_config(b->monitor_private, base,
+					 width, height, scale);
+}
+
 static const struct weston_rdp_output_api api = {
 	rdp_output_set_size,
 	rdp_output_get_config,

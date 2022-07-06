@@ -526,3 +526,27 @@ rdp_wl_array_read_fd(struct wl_array *array, int fd)
 
 	return len;
 }
+
+struct weston_output *
+to_weston_coordinate(RdpPeerContext *peerContext, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height)
+{
+	struct rdp_backend *b = peerContext->rdpBackend;
+
+	if (!b->monitor_private)
+		return &b->output->base;
+
+	return rdpdisp_to_weston_coordinate(b->monitor_private,
+					    x, y, width, height);
+}
+
+void
+to_client_coordinate(RdpPeerContext *peerContext, struct weston_output *output, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height)
+{
+	struct rdp_backend *b = peerContext->rdpBackend;
+
+	if (!b->monitor_private)
+		return;
+
+	rdpdisp_to_client_coordinate(b->monitor_private, output,
+				     x, y, width, height);
+}
