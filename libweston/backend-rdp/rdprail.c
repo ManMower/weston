@@ -2748,7 +2748,7 @@ disp_monitor_layout_change_callback(bool freeOnly, void *dataIn)
         }
 
 	/* tell client the server updated the monitor layout */
-	get_client_extents(b->monitor_private, &x1, &y1, &x2, &y2);
+	rdp_get_client_extents(peerCtx, &x1, &y1, &x2, &y2);
 	reset_graphics.width = x2 - x1;
 	reset_graphics.height = y2 - x1;
 	reset_graphics.monitorCount = data->count;

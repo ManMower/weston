@@ -1234,7 +1234,6 @@ xf_peer_post_connect(freerdp_peer *client)
 static bool
 rdp_translate_and_notify_mouse_position(RdpPeerContext *peerContext, UINT16 x, UINT16 y)
 {
-	struct rdp_backend *b = peerContext->rdpBackend;
 	struct timespec time;
 	int32_t x1, y1;
 	int sx = x, sy = y;
@@ -1245,21 +1244,18 @@ rdp_translate_and_notify_mouse_position(RdpPeerContext *peerContext, UINT16 x, U
 	/* (TS_POINTERX_EVENT):The xy-coordinate of the pointer relative to the top-left
 	                       corner of the server's desktop combined all monitors */
 	/* first, convert to the coordinate based on primary monitor's upper-left as (0,0) */
-	if (b->monitor_private) {
-		get_client_extents(b->monitor_private, &x1, &y1, NULL, NULL);
-		sx = x + x1;
-		sy = y + y1;
-	}
+	rdp_get_client_extents(peerContext, &x1, &y1, NULL, NULL);
+	sx = x + x1;
+	sy = y + y1;
+
 	/* translate client's x/y to the coordinate in weston space. */
 	/* TODO: to_weston_coordinate() is translate based on where pointer is,
 	         not based-on where/which window underneath. Thus, this doesn't
 	         work when window lays across more than 2 monitors and each monitor has
 	         different scaling. In such case, hit test to that window area on
 	         non primary-resident monitor (surface->output) dosn't work. */
-	if (b->monitor_private) {
-		if (!to_weston_coordinate(peerContext, &sx, &sy, NULL, NULL))
-			return false;
-	}
+	if (!to_weston_coordinate(peerContext, &sx, &sy, NULL, NULL))
+		return false;
 
 	weston_compositor_get_time(&time);
 	notify_motion_absolute(peerContext->item.seat, &time, sx, sy);

@@ -528,9 +528,9 @@ rdp_wl_array_read_fd(struct wl_array *array, int fd)
 }
 
 struct weston_output *
-to_weston_coordinate(RdpPeerContext *peerContext, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height)
+to_weston_coordinate(RdpPeerContext *ctx, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height)
 {
-	struct rdp_backend *b = peerContext->rdpBackend;
+	struct rdp_backend *b = ctx->rdpBackend;
 
 	if (!b->monitor_private)
 		return &b->output->base;
@@ -540,9 +540,9 @@ to_weston_coordinate(RdpPeerContext *peerContext, int32_t *x, int32_t *y, uint32
 }
 
 void
-to_client_coordinate(RdpPeerContext *peerContext, struct weston_output *output, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height)
+to_client_coordinate(RdpPeerContext *ctx, struct weston_output *output, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height)
 {
-	struct rdp_backend *b = peerContext->rdpBackend;
+	struct rdp_backend *b = ctx->rdpBackend;
 
 	if (!b->monitor_private)
 		return;
@@ -564,4 +564,25 @@ rdp_head_get_physical_size(struct weston_head *base, int *phys_width, int *phys_
 		return;
 	}
 	rdpdisp_head_get_physical_size(base, phys_width, phys_height);
+}
+
+void
+rdp_get_client_extents(RdpPeerContext *ctx, int32_t *x1, int32_t *y1, int32_t *x2, int32_t *y2)
+{
+	struct rdp_backend *b = ctx->rdpBackend;
+
+	if (!b->monitor_private) {
+		assert(b->output);
+		/* In the single monitor case here, we're always at 0, 0 */
+		if (x1)
+			*x1 = 0;
+		if (y1)
+			*y1 = 0;
+		if (x2)
+			*x2 = b->output->base.current_mode->width;
+		if (y2)
+			*y2 = b->output->base.current_mode->height;
+		return;
+	}
+	rdpdisp_get_client_extents(b->monitor_private, x1, y1, x2, y2);
 }

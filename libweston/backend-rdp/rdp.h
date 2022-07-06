@@ -350,10 +350,10 @@ pid_t rdp_get_tid(void);
 void rdp_debug_print(struct weston_log_scope *log_scope, bool cont, char *fmt, ...);
 
 struct weston_output *
-to_weston_coordinate(RdpPeerContext *peerContext, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height);
+to_weston_coordinate(RdpPeerContext *ctx, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height);
 
 void
-to_client_coordinate(RdpPeerContext *peerContext, struct weston_output *output, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height);
+to_client_coordinate(RdpPeerContext *ctx, struct weston_output *output, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height);
 
 void
 rdp_head_get_physical_size(struct weston_head *base, int *phys_width, int *phys_height);
@@ -366,6 +366,9 @@ assert_compositor_thread(struct rdp_backend *b);
 
 void
 assert_not_compositor_thread(struct rdp_backend *b);
+
+void
+rdp_get_client_extents(RdpPeerContext *ctx, int32_t *x1, int32_t *y1, int32_t *x2, int32_t *y2);
 
 #ifdef HAVE_FREERDP_GFXREDIR_H
 BOOL rdp_allocate_shared_memory(struct rdp_backend *b, struct weston_rdp_shared_memory *shared_memory);
@@ -417,7 +420,7 @@ void
 rdpdisp_to_client_coordinate(void *priv, struct weston_output *output, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height);
 
 void
-get_client_extents(void *priv, int32_t *x1, int32_t *y1, int32_t *x2, int32_t *y2);
+rdpdisp_get_client_extents(void *priv, int32_t *x1, int32_t *y1, int32_t *x2, int32_t *y2);
 
 int
 rdpdisp_output_get_config(void *priv, struct weston_output *base,

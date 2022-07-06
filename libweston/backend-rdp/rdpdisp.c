@@ -710,8 +710,9 @@ init_multi_monitor(struct weston_compositor *comp, void *output_handler_config)
 }
 
 bool
-rdp_disp_handle_adjust_monitor_layout(void *priv, int monitor_count, rdpMonitor *monitors)
+rdp_disp_handle_adjust_monitor_layout(void *priv, int monitor_count, void *list)
 {
+	rdpMonitor *monitors = list;
 	struct monitor_private *mp = priv;
 	bool success = true;
 	struct rdp_monitor_mode *monitorMode = NULL;
@@ -832,7 +833,7 @@ rdpdisp_to_client_coordinate(void *priv, struct weston_output *output, int32_t *
 }
 
 void
-get_client_extents(void *priv, int32_t *x1, int32_t *y1, int32_t *x2, int32_t *y2)
+rdpdisp_get_client_extents(void *priv, int32_t *x1, int32_t *y1, int32_t *x2, int32_t *y2)
 {
 	struct monitor_private *mp = priv;
 
