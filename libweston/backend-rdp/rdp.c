@@ -2024,9 +2024,7 @@ rdp_peer_init(freerdp_peer *client, struct rdp_backend *b)
 	if (!b->rdp_peer)
 		b->rdp_peer = client;
 
-	/* chain peers at default_output */
-	if (b->output_default)
-		wl_list_insert(&b->peers, &peerCtx->item.link);
+	wl_list_insert(&b->peers, &peerCtx->item.link);
 	return 0;
 
 error_rail_initialize:
