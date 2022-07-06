@@ -44,7 +44,7 @@
 #include "shared/xalloc.h"
 
 #define rdp_disp_debug(b, ...) \
-	rdp_debug_print(b->debug, false, __VA_ARGS__)
+	weston_log_scope_printf(b->debug, __VA_ARGS__)
 
 struct rdp_monitor_mode {
 	rdpMonitor monitorDef; // in client coordinate.
