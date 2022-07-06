@@ -405,7 +405,7 @@ bool
 rdp_disp_handle_adjust_monitor_layout(void *priv, int monitor_count, rdpMonitor *monitors);
 
 void
-free_private(void **priv);
+free_private(void *priv);
 
 struct weston_output *
 rdpdisp_to_weston_coordinate(void *priv, int32_t *x, int32_t *y, uint32_t *width, uint32_t *height);

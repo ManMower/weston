@@ -847,10 +847,10 @@ get_client_extents(void *priv, int32_t *x1, int32_t *y1, int32_t *x2, int32_t *y
 }
 
 void
-free_private(void **priv)
+free_private(void *priv)
 {
 	struct weston_head *base, *next;
-	struct monitor_private *mp = *priv;
+	struct monitor_private *mp = priv;
 	struct weston_compositor *ec = mp->compositor;
 
 	wl_list_for_each_safe(base, next, &ec->head_list, compositor_link)
@@ -862,7 +862,6 @@ free_private(void **priv)
 	pixman_region32_fini(&mp->regionWestonHeads);
 	weston_log_scope_destroy(mp->debug);
 	free(mp);
-	*priv = NULL;
 }
 
 int

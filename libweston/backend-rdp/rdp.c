@@ -677,7 +677,7 @@ rdp_destroy(struct weston_compositor *ec)
 	free(b->server_key);
 	free(b->rdp_key);
 	if (b->monitor_private)
-		free_private(&b->monitor_private);
+		free_private(b->monitor_private);
 	free(b);
 }
 
